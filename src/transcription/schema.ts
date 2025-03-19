@@ -86,7 +86,7 @@ export const TranscribeResponseSchema = z
     events: z.array(
       z.object({
         action: z.string(),
-        time: z.string(), // ISO 8601 date-time string
+        time: z.string(),
       }),
     ),
     organizationName: z.string(),
