@@ -1,0 +1,18 @@
+{
+  "name": "@saladtechnologies-oss/salad-cloud-transcription-sdk",
+  "version": "0.9.0-alpha.1",
+  "description": "The SaladCloud Transcription SDK. Please refer to the [SaladCloud API Documentation](https://docs.salad.com/api-reference) for more details.",
+  "keywords": [
+    "transcription",
+    "typescript",
+    "sdk",
+    "api",
+    "client"
+  ],
+  "files": [
+    "README.md"
+  ],
+  "author": "SaladCloud Support",
+  "homepage": "https://github.com/saladtechnologies/salad-cloud-transcription-sdk-javascript",
+  "license": "MIT"
+}
