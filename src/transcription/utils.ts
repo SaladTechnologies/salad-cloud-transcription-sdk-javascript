@@ -1,9 +1,9 @@
-import { TranscribeRequest } from './types'
-import { createReadStream, existsSync } from 'node:fs'
-import FormData from 'form-data'
-import { fileURLToPath } from 'node:url'
-import path from 'node:path'
 import { AxiosInstance } from 'axios'
+import FormData from 'form-data'
+import { createReadStream, existsSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { TranscribeRequest } from './types'
 
 interface UploadFileResponse {
   url: string
@@ -54,12 +54,17 @@ const normalizeFilePath = (filePath: string): string => {
   // Handle file URLs (e.g. "file:///C:/path/to/file.txt")
   if (filePath.startsWith('file://')) {
     try {
-      filePath = fileURLToPath(filePath)
+      const url = new URL(filePath)
+      if (process.platform === 'win32' && !/^\/[A-Za-z]:/.test(url.pathname)) {
+        filePath = filePath.replace(/^file:\/\//, '')
+        filePath = filePath.replace(/^\/+/, '')
+      } else {
+        filePath = fileURLToPath(filePath)
+      }
     } catch (error) {
       console.error('Error converting file URL to path:', error)
     }
   }
-
   // Expand tilde to home directory (only if filePath starts with "~")
   if (filePath.startsWith('~')) {
     const home = process.env.HOME || process.env.USERPROFILE
