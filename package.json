@@ -2,7 +2,12 @@
   "name": "@saladtechnologies-oss/salad-cloud-transcription-sdk",
   "version": "0.9.0-alpha.1",
   "description": "The SaladCloud Transcription SDK. Please refer to the [SaladCloud API Documentation](https://docs.salad.com/api-reference) for more details.",
-  "main": "index.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "browser": "./dist/index.js",
+  "unpkg": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
   "scripts": {
     "build": "tsup-node src/index.ts --format cjs,esm --dts --clean"
   },
