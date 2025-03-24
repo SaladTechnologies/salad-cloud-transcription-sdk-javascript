@@ -17,7 +17,7 @@ import {
   TranscribeRequest,
   TranscribeResponse,
 } from './types'
-import { getIsUrlDownloadable, getTranscriptionSource, transformTranscribeRequest } from './utils'
+import { checkIfUrlDownloadable, getTranscriptionSource, transformTranscribeRequest } from './utils'
 
 export class SaladCloudTranscriptionSdk {
   private saladCloudSdk: SaladCloudSdk
@@ -54,7 +54,7 @@ export class SaladCloudTranscriptionSdk {
     webhookUrl?: string,
   ): Promise<TranscribeResponse> {
     const transcriptionSource = await getTranscriptionSource(this.axiosInstance, source, organizationName)
-    const isUrlDownloadable = await getIsUrlDownloadable(this.axiosInstance, transcriptionSource)
+    const isUrlDownloadable = await checkIfUrlDownloadable(transcriptionSource)
 
     if (isUrlDownloadable) {
       // Build the transcription request.

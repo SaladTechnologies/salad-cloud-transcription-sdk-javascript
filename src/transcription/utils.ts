@@ -1,4 +1,4 @@
-import { AxiosInstance } from 'axios'
+import axios, { AxiosInstance } from 'axios'
 import FormData from 'form-data'
 import { createReadStream, existsSync } from 'node:fs'
 import path from 'node:path'
@@ -211,18 +211,26 @@ export const getTranscriptionSource = async (
  * @param url - The URL to check.
  * @returns A Promise that resolves to true if the URL appears to be downloadable; otherwise, false.
  */
-export const getIsUrlDownloadable = async (axiosInstance: AxiosInstance, url: string): Promise<boolean> => {
+export const checkIfUrlDownloadable = async (url: string): Promise<boolean> => {
   try {
-    const response = await axiosInstance.head(url, { maxRedirects: 5 })
+    const response = await axios.get(url, {
+      headers: {
+        Range: 'bytes=0-0',
+      },
+      responseType: 'stream',
+      maxRedirects: 5,
+    })
 
-    const contentDisposition = response.headers['content-disposition'] || ''
-    if (contentDisposition.toLowerCase().includes('attachment')) {
-      return true
-    }
+    if (response.status === 206 || response.status === 200) {
+      const contentDisposition = response.headers['content-disposition'] || ''
+      if (contentDisposition.toLowerCase().includes('attachment')) {
+        return true
+      }
 
-    const contentType = response.headers['content-type'] || ''
-    if (!contentType.toLowerCase().startsWith('text/html')) {
-      return true
+      const contentType = response.headers['content-type'] || ''
+      if (!contentType.toLowerCase().startsWith('text/html')) {
+        return true
+      }
     }
   } catch (error) {
     return false
