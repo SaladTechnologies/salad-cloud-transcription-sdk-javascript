@@ -17,7 +17,7 @@ import {
   TranscribeRequest,
   TranscribeResponse,
 } from './types'
-import { getTranscriptionSource, transformTranscribeRequest } from './utils'
+import { getIsUrlDownloadable, getTranscriptionSource, transformTranscribeRequest } from './utils'
 
 export class SaladCloudTranscriptionSdk {
   private saladCloudSdk: SaladCloudSdk
@@ -54,30 +54,35 @@ export class SaladCloudTranscriptionSdk {
     webhookUrl?: string,
   ): Promise<TranscribeResponse> {
     const transcriptionSource = await getTranscriptionSource(this.axiosInstance, source, organizationName)
+    const isUrlDownloadable = await getIsUrlDownloadable(this.axiosInstance, transcriptionSource)
 
-    // Build the transcription request.
-    const request: TranscribeRequest = {
-      organizationName,
-      source: transcriptionSource,
-      options,
-      webhookUrl,
-    }
+    if (isUrlDownloadable) {
+      // Build the transcription request.
+      const request: TranscribeRequest = {
+        organizationName,
+        source: transcriptionSource,
+        options,
+        webhookUrl,
+      }
 
-    // Validate the request payload.
-    const validRequest = TranscribeRequestSchema.parse(request)
-    const transformedRequest = transformTranscribeRequest(validRequest)
+      // Validate the request payload.
+      const validRequest = TranscribeRequestSchema.parse(request)
+      const transformedRequest = transformTranscribeRequest(validRequest)
 
-    try {
-      // Send the transcription request.
-      const response = await this.saladCloudSdk.inferenceEndpoints.createInferenceEndpointJob(
-        validRequest.organizationName,
-        transcribeInferenceEndpointName,
-        transformedRequest,
-      )
-      // Validate and return the response payload.
-      return TranscribeResponseSchema.parse(response.data)
-    } catch (error) {
-      throw error
+      try {
+        // Send the transcription request.
+        const response = await this.saladCloudSdk.inferenceEndpoints.createInferenceEndpointJob(
+          validRequest.organizationName,
+          transcribeInferenceEndpointName,
+          transformedRequest,
+        )
+        // Validate and return the response payload.
+        return TranscribeResponseSchema.parse(response.data)
+      } catch (error) {
+        throw error
+      }
+    } else {
+      throw new Error('URL is not downloadable or not publicly accessible')
     }
   }
 

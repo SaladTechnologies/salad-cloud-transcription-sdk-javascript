@@ -204,3 +204,28 @@ export const getTranscriptionSource = async (
   const { url } = await signFile(axiosInstance, signFileRequestUrl)
   return url
 }
+
+/**
+ * Checks if a URL is likely to be downloadable.
+ *
+ * @param url - The URL to check.
+ * @returns A Promise that resolves to true if the URL appears to be downloadable; otherwise, false.
+ */
+export const getIsUrlDownloadable = async (axiosInstance: AxiosInstance, url: string): Promise<boolean> => {
+  try {
+    const response = await axiosInstance.head(url, { maxRedirects: 5 })
+
+    const contentDisposition = response.headers['content-disposition'] || ''
+    if (contentDisposition.toLowerCase().includes('attachment')) {
+      return true
+    }
+
+    const contentType = response.headers['content-type'] || ''
+    if (!contentType.toLowerCase().startsWith('text/html')) {
+      return true
+    }
+  } catch (error) {
+    return false
+  }
+  return false
+}

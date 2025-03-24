@@ -48,14 +48,17 @@ Below is a comprehensive example demonstrating how to authenticate and transcrib
 ```ts
 import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
 
+const sdk = new SaladCloudTranscriptionSdk({
+  apiKey: 'YOUR_API_KEY',
+})
+
+const transcribe = async (): Promise<string> => {
+  const { id } = await sdk.transcribe('organization_name', 'path_to_file/video.mp4')
+  console.log(id)
+}
+
 ;(async () => {
-    const sdk = new SaladCloudTranscriptionSdk({
-        apiKey: 'YOUR_API_KEY',
-    })
-
-    const { id } = await saladCloudTranscriptionSdk.transcribe('organization_name', 'path_to_file/video.mp4')
-
-    console.log(id)
+  await transcribe()
 })()
 ```
 
