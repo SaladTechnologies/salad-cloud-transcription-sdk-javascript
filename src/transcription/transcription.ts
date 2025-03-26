@@ -58,7 +58,11 @@ export class SaladCloudTranscriptionSdk {
     if (isRemoteFile(source)) {
       transcriptionSource = source
     } else {
-      transcriptionSource = await getTranscriptionLocalFileSource(this.axiosInstance, source, organizationName)
+      try {
+        transcriptionSource = await getTranscriptionLocalFileSource(this.axiosInstance, source, organizationName)
+      } catch (error) {
+        throw error
+      }
     }
 
     // Build the transcription request.

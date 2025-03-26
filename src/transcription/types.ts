@@ -23,6 +23,17 @@ export enum Status {
 }
 
 /**
+ * Enum representing event action.
+ */
+export enum EventAction {
+  CREATED = 'created',
+  STARTED = 'started',
+  SUCCEEDED = 'succeeded',
+  CANCELLED = 'cancelled',
+  FAILED = 'failed',
+}
+
+/**
  * Transcription SDK config.
  */
 export interface SaladCloudTranscriptionSdkConfig {

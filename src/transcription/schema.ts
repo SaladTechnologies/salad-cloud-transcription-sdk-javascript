@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Status, TranslationLanguage } from './types'
+import { EventAction, Status, TranslationLanguage } from './types'
 
 export const GetTranscriptionRequestSchema = z
   .object({
@@ -85,7 +85,7 @@ export const TranscribeResponseSchema = z
     status: z.nativeEnum(Status),
     events: z.array(
       z.object({
-        action: z.string(),
+        action: z.nativeEnum(EventAction),
         time: z.string(),
       }),
     ),
@@ -108,6 +108,7 @@ export const TranscribeResponseSchema = z
       .optional(),
     createTime: z.string(),
     updateTime: z.string(),
+    webhook: z.string().url().optional().describe('Webhook URL to receive transcription updates.'),
   })
   .transform((data) => ({
     id: data.id,
@@ -155,6 +156,7 @@ export const TranscribeResponseSchema = z
       : undefined,
     createTime: data.createTime,
     updateTime: data.updateTime,
+    webhookUrl: data.webhook,
   }))
 
 export const ListTranscriptionsResponseSchema = z.object({
