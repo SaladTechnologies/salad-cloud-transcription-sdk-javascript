@@ -1,40 +1,59 @@
 import axios, { AxiosInstance } from 'axios'
 import FormData from 'form-data'
+import fs from 'fs/promises'
 import { createReadStream, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { TranscribeRequest } from './types'
+import { filePartSizeBytesForStorage, maxFileSizeBytesForStorage } from '../constants'
+import { uploadFileInParts } from './multipartUploadUtils'
 
 interface UploadFileResponse {
   url: string
 }
 
 /**
- * Transforms a transcribe request to the API-expected format.
+ * Uploads a file.
  *
- * Maps `source` to `input.url` and converts translation arrays (if present)
- * into comma-separated strings.
- *
- * @param transcribeRequest - The original transcribe request.
- * @returns The transformed request object.
+ * @param axiosInstance - The axios instance configured for API requests.
+ * @param formData - The FormData instance containing the file.
+ * @param url - The upload URL.
+ * @returns A promise that resolves to the upload file response.
  */
-export const transformTranscribeRequest = (transcribeRequest: TranscribeRequest): Record<string, any> => {
-  const { source, organizationName, options, ...rest } = transcribeRequest
+const uploadFile = async (
+  axiosInstance: AxiosInstance,
+  formData: FormData,
+  url: string,
+): Promise<UploadFileResponse> => {
+  const headers = {
+    ...formData.getHeaders(),
+  }
 
-  const transformedOptions = options
-    ? {
-        ...options,
-        llm_translation: options.llmTranslation?.join(', '),
-        srt_translation: options.srtTranslation?.join(', '),
-      }
-    : {}
+  try {
+    const response = await axiosInstance.put(url, formData, { headers })
+    return response.data
+  } catch (error: any) {
+    throw new Error(`Error uploading file: ${error?.message || 'Unknown error'}`)
+  }
+}
 
-  return {
-    ...rest,
-    input: {
-      url: source,
-      ...transformedOptions,
-    },
+/**
+ * Signs a file.
+ *
+ * @param axiosInstance - The axios instance configured for API requests.
+ * @param url - The sign file endpoint URL.
+ * @returns A promise that resolves to the signed file response.
+ */
+const signFile = async (axiosInstance: AxiosInstance, url: string): Promise<UploadFileResponse> => {
+  const requestBody = {
+    method: 'GET',
+    exp: '3600',
+  }
+
+  try {
+    const response = await axiosInstance.post(url, requestBody)
+    return response.data
+  } catch (error: any) {
+    throw new Error(`Error signing file: ${error?.message || 'Unknown error'}`)
   }
 }
 
@@ -126,52 +145,6 @@ const isRemoteFile = (source: string): boolean => {
 }
 
 /**
- * Uploads a file.
- *
- * @param axiosInstance - The axios instance configured for API requests.
- * @param formData - The FormData instance containing the file.
- * @param url - The upload URL.
- * @returns A promise that resolves to the upload file response.
- */
-const uploadFile = async (
-  axiosInstance: AxiosInstance,
-  formData: FormData,
-  url: string,
-): Promise<UploadFileResponse> => {
-  const headers = {
-    ...formData.getHeaders(),
-  }
-
-  try {
-    const response = await axiosInstance.put(url, formData, { headers })
-    return response.data
-  } catch (error: any) {
-    throw new Error(`Error uploading file: ${error?.message || 'Unknown error'}`)
-  }
-}
-
-/**
- * Signs a file.
- *
- * @param axiosInstance - The axios instance configured for API requests.
- * @param url - The sign file endpoint URL.
- * @returns A promise that resolves to the signed file response.
- */
-const signFile = async (axiosInstance: AxiosInstance, url: string): Promise<UploadFileResponse> => {
-  const requestBody = {
-    method: 'GET',
-    exp: '3600',
-  }
-
-  try {
-    const response = await axiosInstance.post(url, requestBody)
-    return response.data
-  } catch (error: any) {
-    throw new Error(`Error signing file: ${error?.message || 'Unknown error'}`)
-  }
-}
-
-/**
  * Returns a remote URL for transcription.
  *
  * If the provided source is already remote, returns it.
@@ -194,13 +167,34 @@ export const getTranscriptionSource = async (
   const normalizedFilePath = normalizeFilePath(source)
   const fileName = path.basename(normalizedFilePath)
 
+  const uploadFileRequestUrl = `/organizations/${organizationName}/files/${fileName}`
+  const signFileRequestUrl = `/organizations/${organizationName}/file_tokens/${fileName}`
+
+  try {
+    const stats = await fs.stat(normalizedFilePath)
+    const fileSize = stats.size
+
+    if (fileSize > maxFileSizeBytesForStorage) {
+      await uploadFileInParts(
+        axiosInstance,
+        fileName,
+        normalizedFilePath,
+        fileSize,
+        organizationName,
+        filePartSizeBytesForStorage,
+      )
+      const { url } = await signFile(axiosInstance, signFileRequestUrl)
+      return url
+    }
+  } catch (err) {
+    throw new Error(`Error uploading file: ${source} with error: ${err}`)
+  }
+
   // Create FormData for the file and upload it.
   const formData = await createFormData(normalizedFilePath)
-  const uploadFileRequestUrl = `/organizations/${organizationName}/files/${fileName}`
   await uploadFile(axiosInstance, formData, uploadFileRequestUrl)
 
   // Sign the file to obtain a remote URL.
-  const signFileRequestUrl = `/organizations/${organizationName}/file_tokens/${fileName}`
   const { url } = await signFile(axiosInstance, signFileRequestUrl)
   return url
 }
