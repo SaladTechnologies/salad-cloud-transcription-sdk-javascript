@@ -3,39 +3,9 @@ import FormData from 'form-data'
 import { createReadStream, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { TranscribeRequest } from './types'
 
 interface UploadFileResponse {
   url: string
-}
-
-/**
- * Transforms a transcribe request to the API-expected format.
- *
- * Maps `source` to `input.url` and converts translation arrays (if present)
- * into comma-separated strings.
- *
- * @param transcribeRequest - The original transcribe request.
- * @returns The transformed request object.
- */
-export const transformTranscribeRequest = (transcribeRequest: TranscribeRequest): Record<string, any> => {
-  const { source, organizationName, options, ...rest } = transcribeRequest
-
-  const transformedOptions = options
-    ? {
-        ...options,
-        llm_translation: options.llmTranslation?.join(', '),
-        srt_translation: options.srtTranslation?.join(', '),
-      }
-    : {}
-
-  return {
-    ...rest,
-    input: {
-      url: source,
-      ...transformedOptions,
-    },
-  }
 }
 
 /**
@@ -111,21 +81,6 @@ const createFormData = async (fileSource: string): Promise<FormData> => {
 }
 
 /**
- * Checks if the provided source string is a remote URL.
- *
- * @param source - The source string.
- * @returns True if the source is a remote URL, false otherwise.
- */
-const isRemoteFile = (source: string): boolean => {
-  try {
-    const url = new URL(source)
-    return ['http:', 'https:', 'ftp:'].includes(url.protocol)
-  } catch {
-    return false
-  }
-}
-
-/**
  * Uploads a file.
  *
  * @param axiosInstance - The axios instance configured for API requests.
@@ -177,19 +132,16 @@ const signFile = async (axiosInstance: AxiosInstance, url: string): Promise<Uplo
  * If the provided source is already remote, returns it.
  * Otherwise, it normalizes the file path, uploads the file, and obtains a signed URL.
  *
+ * @param axiosInstance - The axios instance configured for API requests.
  * @param source - The file source, which may be a local path or remote URL.
  * @param organizationName - The organization name.
  * @returns A promise that resolves to a remote URL.
  */
-export const getTranscriptionSource = async (
+export const getTranscriptionLocalFileSource = async (
   axiosInstance: AxiosInstance,
   source: string,
   organizationName: string,
 ): Promise<string> => {
-  if (isRemoteFile(source)) {
-    return source
-  }
-
   // Normalize the local file path and extract the file name.
   const normalizedFilePath = normalizeFilePath(source)
   const fileName = path.basename(normalizedFilePath)

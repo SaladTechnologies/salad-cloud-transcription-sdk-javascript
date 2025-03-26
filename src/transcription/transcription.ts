@@ -1,6 +1,7 @@
 import { SaladCloudSdk } from '@saladtechnologies-oss/salad-cloud-sdk'
 import axios, { AxiosInstance } from 'axios'
 import { oneMinuteInMs, oneSecondInMs, transcribeInferenceEndpointName } from './constants'
+import { getTranscriptionLocalFileSource } from './node'
 import {
   GetTranscriptionRequestSchema,
   ListTranscriptionsRequestSchema,
@@ -17,7 +18,7 @@ import {
   TranscribeRequest,
   TranscribeResponse,
 } from './types'
-import { getTranscriptionSource, transformTranscribeRequest } from './utils'
+import { isRemoteFile, transformTranscribeRequest } from './utils'
 
 export class SaladCloudTranscriptionSdk {
   private saladCloudSdk: SaladCloudSdk
@@ -53,7 +54,12 @@ export class SaladCloudTranscriptionSdk {
     options?: TranscribeOptions,
     webhookUrl?: string,
   ): Promise<TranscribeResponse> {
-    const transcriptionSource = await getTranscriptionSource(this.axiosInstance, source, organizationName)
+    let transcriptionSource: string
+    if (isRemoteFile(source)) {
+      transcriptionSource = source
+    } else {
+      transcriptionSource = await getTranscriptionLocalFileSource(this.axiosInstance, source, organizationName)
+    }
 
     // Build the transcription request.
     const request: TranscribeRequest = {

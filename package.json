@@ -2,14 +2,18 @@
   "name": "@saladtechnologies-oss/salad-cloud-transcription-sdk",
   "version": "0.9.0-alpha.1",
   "description": "The SaladCloud Transcription SDK. Please refer to the [SaladCloud API Documentation](https://docs.salad.com/api-reference) for more details.",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "browser": "./dist/index.js",
-  "unpkg": "./dist/index.js",
+  "main": "./dist/node/index.js",
+  "module": "./dist/browser/index.mjs",
+  "browser": {
+    "./src/transcription/node/utils.ts": "./src/transcription/utils/utils.ts"
+  },
+  "unpkg": "./dist/browser/index.js",
   "types": "./dist/index.d.ts",
   "source": "./src/index.ts",
   "scripts": {
-    "build": "tsup-node src/index.ts --format cjs,esm --dts --clean"
+    "build:node": "tsup src/index.ts --format cjs,esm --dts --out-dir dist/node --target node14 --clean",
+    "build:browser": "tsup src/index.ts --platform browser --format cjs,esm --dts --out-dir dist/browser --target es2018 --clean",
+    "build": "npm run build:node && npm run build:browser"
   },
   "keywords": [
     "transcription",
@@ -42,8 +46,8 @@
   },
   "exports": {
     ".": {
-      "require": "./dist/index.js",
-      "import": "./dist/index.js"
+      "browser": "./dist/browser/index.js",
+      "default": "./dist/node/index.js"
     }
   }
 }
