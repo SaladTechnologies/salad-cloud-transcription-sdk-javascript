@@ -142,6 +142,17 @@ export interface TranscribeRequest {
 }
 
 /**
+ * Webhook request interface.
+ */
+export interface ProcessWebhookRequest {
+  payload: any
+  base64Secret: string
+  webhookId: string
+  webhookTimestamp: string
+  webhookSignature: string
+}
+
+/**
  * Transcribe response interface.
  */
 export interface TranscribeResponse {

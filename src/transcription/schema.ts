@@ -162,3 +162,13 @@ export const TranscribeResponseSchema = z
 export const ListTranscriptionsResponseSchema = z.object({
   items: z.array(TranscribeResponseSchema),
 })
+
+export const ProcessWebhookRequestSchema = z
+  .object({
+    payload: z.any(),
+    base64Secret: z.string(),
+    webhookId: z.string(),
+    webhookTimestamp: z.string(),
+    webhookSignature: z.string(),
+  })
+  .strict()

@@ -5,12 +5,14 @@ import {
   GetTranscriptionRequestSchema,
   ListTranscriptionsRequestSchema,
   ListTranscriptionsResponseSchema,
+  ProcessWebhookRequestSchema,
   TranscribeRequestSchema,
   TranscribeResponseSchema,
 } from './schema'
 import {
   GetTranscriptionRequest,
   ListTranscriptionsResponse,
+  ProcessWebhookRequest,
   SaladCloudTranscriptionSdkConfig,
   Status,
   TranscribeOptions,
@@ -18,6 +20,7 @@ import {
   TranscribeResponse,
 } from './types'
 import { checkIfUrlDownloadable, getTranscriptionSource, transformTranscribeRequest } from './utils'
+import { Webhook } from './webhook'
 
 export class SaladCloudTranscriptionSdk {
   private saladCloudSdk: SaladCloudSdk
@@ -135,6 +138,44 @@ export class SaladCloudTranscriptionSdk {
     } catch (error: any) {
       throw error
     }
+  }
+
+  /**
+   * Processes a webhook request.
+   *
+   * @param payload - The raw payload received from the webhook request.
+   * @param base64Secret - The base64 encoded secret used for signature verification.
+   * @param webhookId - The unique identifier provided in the webhook.
+   * @param webhookTimestamp - The timestamp provided in the webhook.
+   * @param webhookSignature - The signature provided in the webhook.
+   * @returns A promise that resolves to the result of the webhook verification.
+   */
+  async processWebhookRequest(
+    payload: any,
+    base64Secret: string,
+    webhookId: string,
+    webhookTimestamp: string,
+    webhookSignature: string,
+  ): Promise<unknown> {
+    const request: ProcessWebhookRequest = {
+      payload,
+      base64Secret,
+      webhookId,
+      webhookTimestamp,
+      webhookSignature,
+    }
+
+    // Validate the request payload.
+    const validRequest = ProcessWebhookRequestSchema.parse(request)
+
+    const webhookHeaders = {
+      'webhook-id': validRequest.webhookId,
+      'webhook-timestamp': validRequest.webhookTimestamp,
+      'webhook-signature': validRequest.webhookSignature,
+    }
+
+    const wh = new Webhook(validRequest.base64Secret)
+    return wh.verify(validRequest.payload, webhookHeaders)
   }
 
   /**
