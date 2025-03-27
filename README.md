@@ -13,10 +13,14 @@ The SaladCloud REST API. Please refer to the [SaladCloud API Documentation](http
 
 ## Installation
 
-To get started with the SDK, we recommend installing using `npm`:
+To get started with the SDK, we recommend installing using `npm` or `yarn`:
 
 ```bash
 npm install @saladtechnologies-oss/salad-cloud-transcription-sdk
+```
+
+```bash
+yarn add @saladtechnologies-oss/salad-cloud-transcription-sdk
 ```
 
 ## Authentication
