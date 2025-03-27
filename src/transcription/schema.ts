@@ -8,6 +8,13 @@ export const GetTranscriptionRequestSchema = z
   })
   .strict()
 
+export const StopTranscriptionRequestSchema = z
+  .object({
+    transcriptionId: z.string(),
+    organizationName: z.string(),
+  })
+  .strict()
+
 export const ListTranscriptionsRequestSchema = z
   .object({
     organizationName: z.string(),

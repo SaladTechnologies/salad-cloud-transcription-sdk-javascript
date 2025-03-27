@@ -50,6 +50,14 @@ export interface GetTranscriptionRequest {
 }
 
 /**
+ * Stop (cancel) transcription interface.
+ */
+export interface StopTranscriptionRequest {
+  transcriptionId: string
+  organizationName: string
+}
+
+/**
  * List transcriptions interface.
  */
 export interface ListTranscriptionsRequest {

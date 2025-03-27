@@ -7,6 +7,7 @@ import {
   ListTranscriptionsRequestSchema,
   ListTranscriptionsResponseSchema,
   ProcessWebhookRequestSchema,
+  StopTranscriptionRequestSchema,
   TranscribeRequestSchema,
   TranscribeResponseSchema,
 } from './schema'
@@ -16,6 +17,7 @@ import {
   ProcessWebhookRequest,
   SaladCloudTranscriptionSdkConfig,
   Status,
+  StopTranscriptionRequest,
   TranscribeOptions,
   TranscribeRequest,
   TranscribeResponse,
@@ -129,6 +131,30 @@ export class SaladCloudTranscriptionSdk {
   }
 
   /**
+   * Stops (cancels) an active transcription job.
+   *
+   * @param organizationName - The organization name.
+   * @param transcriptionId - The unique identifier for the transcription job.
+   * @returns A promise that resolves to void when the job is successfully stopped.
+   */
+  async stop(organizationName: string, transcriptionId: string): Promise<void> {
+    const request: StopTranscriptionRequest = { organizationName, transcriptionId }
+
+    // Validate the list request payload.
+    const validRequest = StopTranscriptionRequestSchema.parse(request)
+
+    try {
+      await this.saladCloudSdk.inferenceEndpoints.deleteInferenceEndpointJob(
+        validRequest.organizationName,
+        transcribeInferenceEndpointName,
+        validRequest.transcriptionId,
+      )
+    } catch (error: any) {
+      throw error
+    }
+  }
+
+  /**
    * Lists all transcription jobs for a given organization.
    *
    * @param organizationName - The organization name.
@@ -196,7 +222,7 @@ export class SaladCloudTranscriptionSdk {
    * final state ("succeeded" or "failed"), the timeout is reached, or the operation is aborted.
    *
    * @param organizationName - The organization name.
-   * @param transcriptionId - The unique transcription identifier.
+   * @param transcriptionId - The unique identifier for the transcription job.
    * @param signal - *(Optional)* An AbortSignal to cancel the polling operation.
    * @returns A promise that resolves to a validated TranscribeResponse.
    */
