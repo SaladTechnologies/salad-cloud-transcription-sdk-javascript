@@ -46,17 +46,17 @@ const sdk = new SaladCloudTranscriptionSdk({ timeout: 10000 })
 Below is a comprehensive example demonstrating how to authenticate and transcribe:
 
 ```ts
-import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
+import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk';
 
-;(async () => {
-    const sdk = new SaladCloudTranscriptionSdk({
-        apiKey: 'YOUR_API_KEY',
-    })
+(async () => {
+  const sdk = new SaladCloudTranscriptionSdk({
+    apiKey: 'YOUR_API_KEY',
+  });
 
-    const { id } = await saladCloudTranscriptionSdk.transcribe('organization_name', 'path_to_file/video.mp4')
+  const { id } = await saladCloudTranscriptionSdk.transcribe('organization_name', 'path_to_file_or_url/video.mp4');
 
-    console.log(id)
-})()
+  console.log(id);
+})();
 ```
 
 ## License
