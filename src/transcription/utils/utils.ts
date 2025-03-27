@@ -46,7 +46,7 @@ export const isRemoteFile = (source: string): boolean => {
 }
 
 /**
- * Checks if a URL is likely to be downloadable.
+ * Checks if a URL is downloadable.
  *
  * @param url - The URL to check.
  * @returns A Promise that resolves to true if the URL appears to be downloadable; otherwise, false.
