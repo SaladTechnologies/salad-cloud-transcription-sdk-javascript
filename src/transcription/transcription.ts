@@ -20,7 +20,7 @@ import {
   TranscribeRequest,
   TranscribeResponse,
 } from './types'
-import { checkIfUrlDownloadable, transformTranscribeRequest } from './utils'
+import { checkIfUrlDownloadable, isRemoteFile, transformTranscribeRequest } from './utils'
 import { Webhook } from './webhook'
 
 export class SaladCloudTranscriptionSdk {
