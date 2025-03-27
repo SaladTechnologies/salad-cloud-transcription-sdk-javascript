@@ -18,7 +18,7 @@ import {
   TranscribeRequest,
   TranscribeResponse,
 } from './types'
-import { isRemoteFile, transformTranscribeRequest } from './utils'
+import { checkIfUrlDownloadable, isRemoteFile, transformTranscribeRequest } from './utils'
 
 export class SaladCloudTranscriptionSdk {
   private saladCloudSdk: SaladCloudSdk
