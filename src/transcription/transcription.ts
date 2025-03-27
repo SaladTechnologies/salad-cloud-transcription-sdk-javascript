@@ -6,19 +6,24 @@ import {
   GetTranscriptionRequestSchema,
   ListTranscriptionsRequestSchema,
   ListTranscriptionsResponseSchema,
+  ProcessWebhookRequestSchema,
+  StopTranscriptionRequestSchema,
   TranscribeRequestSchema,
   TranscribeResponseSchema,
 } from './schema'
 import {
   GetTranscriptionRequest,
   ListTranscriptionsResponse,
+  ProcessWebhookRequest,
   SaladCloudTranscriptionSdkConfig,
   Status,
+  StopTranscriptionRequest,
   TranscribeOptions,
   TranscribeRequest,
   TranscribeResponse,
 } from './types'
-import { isRemoteFile, transformTranscribeRequest } from './utils'
+import { checkIfUrlDownloadable, isRemoteFile, transformTranscribeRequest } from './utils'
+import { Webhook } from './webhook'
 
 export class SaladCloudTranscriptionSdk {
   private saladCloudSdk: SaladCloudSdk
@@ -65,29 +70,35 @@ export class SaladCloudTranscriptionSdk {
       }
     }
 
-    // Build the transcription request.
-    const request: TranscribeRequest = {
-      organizationName,
-      source: transcriptionSource,
-      options,
-      webhookUrl,
-    }
+    const isUrlDownloadable = await checkIfUrlDownloadable(transcriptionSource)
 
-    // Validate the request payload.
-    const validRequest = TranscribeRequestSchema.parse(request)
-    const transformedRequest = transformTranscribeRequest(validRequest)
+    if (isUrlDownloadable) {
+      // Build the transcription request.
+      const request: TranscribeRequest = {
+        organizationName,
+        source: transcriptionSource,
+        options,
+        webhookUrl,
+      }
 
-    try {
-      // Send the transcription request.
-      const response = await this.saladCloudSdk.inferenceEndpoints.createInferenceEndpointJob(
-        validRequest.organizationName,
-        transcribeInferenceEndpointName,
-        transformedRequest,
-      )
-      // Validate and return the response payload.
-      return TranscribeResponseSchema.parse(response.data)
-    } catch (error) {
-      throw error
+      // Validate the request payload.
+      const validRequest = TranscribeRequestSchema.parse(request)
+      const transformedRequest = transformTranscribeRequest(validRequest)
+
+      try {
+        // Send the transcription request.
+        const response = await this.saladCloudSdk.inferenceEndpoints.createInferenceEndpointJob(
+          validRequest.organizationName,
+          transcribeInferenceEndpointName,
+          transformedRequest,
+        )
+        // Validate and return the response payload.
+        return TranscribeResponseSchema.parse(response.data)
+      } catch (error) {
+        throw error
+      }
+    } else {
+      throw new Error('URL is not downloadable or not publicly accessible')
     }
   }
 
@@ -120,6 +131,30 @@ export class SaladCloudTranscriptionSdk {
   }
 
   /**
+   * Stops (cancels) an active transcription job.
+   *
+   * @param organizationName - The organization name.
+   * @param transcriptionId - The unique identifier for the transcription job.
+   * @returns A promise that resolves to void when the job is successfully stopped.
+   */
+  async stop(organizationName: string, transcriptionId: string): Promise<void> {
+    const request: StopTranscriptionRequest = { organizationName, transcriptionId }
+
+    // Validate the list request payload.
+    const validRequest = StopTranscriptionRequestSchema.parse(request)
+
+    try {
+      await this.saladCloudSdk.inferenceEndpoints.deleteInferenceEndpointJob(
+        validRequest.organizationName,
+        transcribeInferenceEndpointName,
+        validRequest.transcriptionId,
+      )
+    } catch (error: any) {
+      throw error
+    }
+  }
+
+  /**
    * Lists all transcription jobs for a given organization.
    *
    * @param organizationName - The organization name.
@@ -143,13 +178,51 @@ export class SaladCloudTranscriptionSdk {
   }
 
   /**
+   * Processes a webhook request.
+   *
+   * @param payload - The raw payload received from the webhook request.
+   * @param base64Secret - The base64 encoded secret used for signature verification.
+   * @param webhookId - The unique identifier provided in the webhook.
+   * @param webhookTimestamp - The timestamp provided in the webhook.
+   * @param webhookSignature - The signature provided in the webhook.
+   * @returns A promise that resolves to the result of the webhook verification.
+   */
+  async processWebhookRequest(
+    payload: any,
+    base64Secret: string,
+    webhookId: string,
+    webhookTimestamp: string,
+    webhookSignature: string,
+  ): Promise<unknown> {
+    const request: ProcessWebhookRequest = {
+      payload,
+      base64Secret,
+      webhookId,
+      webhookTimestamp,
+      webhookSignature,
+    }
+
+    // Validate the request payload.
+    const validRequest = ProcessWebhookRequestSchema.parse(request)
+
+    const webhookHeaders = {
+      'webhook-id': validRequest.webhookId,
+      'webhook-timestamp': validRequest.webhookTimestamp,
+      'webhook-signature': validRequest.webhookSignature,
+    }
+
+    const wh = new Webhook(validRequest.base64Secret)
+    return wh.verify(validRequest.payload, webhookHeaders)
+  }
+
+  /**
    * Polls the transcription status until a final state is reached.
    *
    * This method continuously polls the status endpoint until the job reaches a
    * final state ("succeeded" or "failed"), the timeout is reached, or the operation is aborted.
    *
    * @param organizationName - The organization name.
-   * @param transcriptionId - The unique transcription identifier.
+   * @param transcriptionId - The unique identifier for the transcription job.
    * @param signal - *(Optional)* An AbortSignal to cancel the polling operation.
    * @returns A promise that resolves to a validated TranscribeResponse.
    */

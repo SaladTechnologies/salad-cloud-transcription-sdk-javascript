@@ -1,0 +1,18 @@
+{
+  "name": "salad-cloud-transcription-sdk",
+  "version": "0.9.0-alpha.1",
+  "private": true,
+  "dependencies": {
+    "@saladtechnologies-oss/salad-cloud-transcription-sdk": "file:../",
+    "zod": "3.22.0"
+  },
+  "scripts": {
+    "setup": "npm --prefix ../ install && npm --prefix ../ run build && npm install",
+    "start": "tsc && node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.1",
+    "typescript": "5.3.3"
+  }
+}

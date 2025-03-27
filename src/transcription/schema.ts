@@ -8,6 +8,13 @@ export const GetTranscriptionRequestSchema = z
   })
   .strict()
 
+export const StopTranscriptionRequestSchema = z
+  .object({
+    transcriptionId: z.string(),
+    organizationName: z.string(),
+  })
+  .strict()
+
 export const ListTranscriptionsRequestSchema = z
   .object({
     organizationName: z.string(),
@@ -33,6 +40,7 @@ export const TranscribeRequestSchema = z
         srtTranslation: z.array(z.nativeEnum(TranslationLanguage)).optional(),
         customVocabulary: z.string().optional(),
         customPrompt: z.string().optional(),
+        classificationLabels: z.string().optional(),
         overallSentimentAnalysis: z.boolean().optional(),
         overallClassification: z.boolean().optional(),
       })
@@ -50,7 +58,8 @@ export const TranscribeRequestSchema = z
         srt_translation: data.srtTranslation,
         custom_vocabulary: data.customVocabulary,
         custom_prompt: data.customPrompt,
-        overall_sentiment_analysis: data.overallSentimentAnalysis,
+        overall_sentiment_analysis: data.classificationLabels,
+        classification_labels: data.overallSentimentAnalysis,
         overall_classification: data.overallClassification,
       }))
       .optional(),
@@ -127,9 +136,9 @@ export const TranscribeResponseSchema = z
       customVocabulary: data.input.custom_vocabulary,
       sentenceLevelTimestamps: data.input.sentence_level_timestamps,
       summarize: data.input.summarize,
+      classificationLabels: data.input.classification_labels,
       overallClassification: data.input.overall_classification,
       overallSentimentAnalysis: data.input.overall_sentiment_analysis,
-      classificationLabels: data.input.classification_labels,
     },
     inferenceEndpointName: data.inferenceEndpointName,
     metadata: data.metadata,
@@ -162,3 +171,13 @@ export const TranscribeResponseSchema = z
 export const ListTranscriptionsResponseSchema = z.object({
   items: z.array(TranscribeResponseSchema),
 })
+
+export const ProcessWebhookRequestSchema = z
+  .object({
+    payload: z.any(),
+    base64Secret: z.string(),
+    webhookId: z.string(),
+    webhookTimestamp: z.string(),
+    webhookSignature: z.string(),
+  })
+  .strict()
