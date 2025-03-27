@@ -2,6 +2,19 @@
   "name": "@saladtechnologies-oss/salad-cloud-transcription-sdk",
   "version": "0.9.0-alpha.1",
   "description": "The SaladCloud Transcription SDK. Please refer to the [SaladCloud API Documentation](https://docs.salad.com/api-reference) for more details.",
+  "main": "./dist/node/index.js",
+  "module": "./dist/browser/index.mjs",
+  "browser": {
+    "./src/transcription/node/utils.ts": "./src/transcription/utils/utils.ts"
+  },
+  "unpkg": "./dist/browser/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "scripts": {
+    "build:node": "tsup src/index.ts --format cjs,esm --dts --out-dir dist/node --target node14 --clean",
+    "build:browser": "tsup src/index.ts --platform browser --format cjs,esm --dts --out-dir dist/browser --target es2018 --clean",
+    "build": "npm run build:node && npm run build:browser"
+  },
   "keywords": [
     "transcription",
     "typescript",
@@ -10,9 +23,31 @@
     "client"
   ],
   "files": [
-    "README.md"
+    "README.md",
+    "dist"
   ],
   "author": "SaladCloud Support",
   "homepage": "https://github.com/saladtechnologies/salad-cloud-transcription-sdk-javascript",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "eslint": "^9.22.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-prettier": "^5.2.3",
+    "prettier": "^3.5.3",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "@saladtechnologies-oss/salad-cloud-sdk": "^0.9.0-alpha.9",
+    "axios": "^1.8.3",
+    "form-data": "^4.0.2",
+    "zod": "^3.24.2"
+  },
+  "exports": {
+    ".": {
+      "browser": "./dist/browser/index.js",
+      "default": "./dist/node/index.js"
+    }
+  }
 }
