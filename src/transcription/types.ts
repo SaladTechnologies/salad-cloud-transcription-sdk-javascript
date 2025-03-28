@@ -205,6 +205,10 @@ export interface TranscribeResponse {
         duration: number
         processingTime: number
       }
+    | {
+        error: string
+        duration: number
+      }
   createTime: string
   updateTime: string
 }

@@ -1,4 +1,3 @@
-import axios from 'axios'
 import { TranscribeRequest } from '../types'
 
 /**
@@ -43,39 +42,6 @@ export const isRemoteFile = (source: string): boolean => {
   } catch {
     return false
   }
-}
-
-/**
- * Checks if a URL is downloadable.
- *
- * @param url - The URL to check.
- * @returns A Promise that resolves to true if the URL appears to be downloadable; otherwise, false.
- */
-export const checkIfUrlDownloadable = async (url: string): Promise<boolean> => {
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        Range: 'bytes=0-0',
-      },
-      responseType: 'stream',
-      maxRedirects: 5,
-    })
-
-    if (response.status === 206 || response.status === 200) {
-      const contentDisposition = response.headers['content-disposition'] || ''
-      if (contentDisposition.toLowerCase().includes('attachment')) {
-        return true
-      }
-
-      const contentType = response.headers['content-type'] || ''
-      if (!contentType.toLowerCase().startsWith('text/html')) {
-        return true
-      }
-    }
-  } catch (error) {
-    return false
-  }
-  return false
 }
 
 /**
