@@ -6,6 +6,7 @@ import {
   GetTranscriptionRequestSchema,
   ListTranscriptionsRequestSchema,
   ListTranscriptionsResponseSchema,
+  StopTranscriptionRequestSchema,
   TranscribeRequestSchema,
   TranscribeResponseSchema,
 } from './schema'
@@ -14,6 +15,7 @@ import {
   ListTranscriptionsResponse,
   SaladCloudTranscriptionSdkConfig,
   Status,
+  StopTranscriptionRequest,
   TranscribeOptions,
   TranscribeRequest,
   TranscribeResponse,
@@ -84,6 +86,7 @@ export class SaladCloudTranscriptionSdk {
         transcribeInferenceEndpointName,
         transformedRequest,
       )
+
       // Validate and return the response payload.
       return TranscribeResponseSchema.parse(response.data)
     } catch (error) {
@@ -112,8 +115,40 @@ export class SaladCloudTranscriptionSdk {
         validRequest.transcriptionId,
       )
       const { data } = response
-      // Validate and return the response payload.
-      return TranscribeResponseSchema.parse(data)
+      // Validate the response payload.
+      const validResponse = TranscribeResponseSchema.parse(data)
+
+      // Throw an error if the response contains an error message.
+      if (validResponse.output?.error) {
+        const errorMessage = `Transcription job ${validResponse.id} failed due to: ${validResponse.output.error}`
+        throw new Error(errorMessage)
+      } else {
+        return validResponse
+      }
+    } catch (error: any) {
+      throw error
+    }
+  }
+
+  /**
+   * Stops (cancels) an active transcription job.
+   *
+   * @param organizationName - The organization name.
+   * @param transcriptionId - The unique identifier for the transcription job.
+   * @returns A promise that resolves to void when the job is successfully stopped.
+   */
+  async stop(organizationName: string, transcriptionId: string): Promise<void> {
+    const request: StopTranscriptionRequest = { organizationName, transcriptionId }
+
+    // Validate the list request payload.
+    const validRequest = StopTranscriptionRequestSchema.parse(request)
+
+    try {
+      await this.saladCloudSdk.inferenceEndpoints.deleteInferenceEndpointJob(
+        validRequest.organizationName,
+        transcribeInferenceEndpointName,
+        validRequest.transcriptionId,
+      )
     } catch (error: any) {
       throw error
     }
@@ -149,7 +184,7 @@ export class SaladCloudTranscriptionSdk {
    * final state ("succeeded" or "failed"), the timeout is reached, or the operation is aborted.
    *
    * @param organizationName - The organization name.
-   * @param transcriptionId - The unique transcription identifier.
+   * @param transcriptionId - The unique identifier for the transcription job.
    * @param signal - *(Optional)* An AbortSignal to cancel the polling operation.
    * @returns A promise that resolves to a validated TranscribeResponse.
    */
@@ -180,7 +215,13 @@ export class SaladCloudTranscriptionSdk {
 
       // Return the response if the job is complete.
       if (validResponse.status === Status.Succeeded || validResponse.status === Status.Failed) {
-        return validResponse
+        // Throw an error if the response contains an error message.
+        if (validResponse.output?.error) {
+          const errorMessage = `Transcription job ${validResponse.id} failed due to: ${validResponse.output.error}`
+          throw new Error(errorMessage)
+        } else {
+          return validResponse
+        }
       }
 
       // Otherwise, wait and poll again.
