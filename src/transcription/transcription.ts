@@ -1,6 +1,7 @@
 import { SaladCloudSdk } from '@saladtechnologies-oss/salad-cloud-sdk'
 import axios, { AxiosInstance } from 'axios'
 import { oneMinuteInMs, oneSecondInMs, transcribeInferenceEndpointName } from './constants'
+import { TranscriptionError } from './errors'
 import { getTranscriptionLocalFileSource } from './node'
 import {
   GetTranscriptionRequestSchema,
@@ -120,8 +121,7 @@ export class SaladCloudTranscriptionSdk {
 
       // Throw an error if the response contains an error message.
       if (validResponse.output?.error) {
-        const errorMessage = `Transcription job ${validResponse.id} failed due to: ${validResponse.output.error}`
-        throw new Error(errorMessage)
+        throw new TranscriptionError(validResponse.id, validResponse.output.error)
       } else {
         return validResponse
       }
@@ -217,8 +217,7 @@ export class SaladCloudTranscriptionSdk {
       if (validResponse.status === Status.Succeeded || validResponse.status === Status.Failed) {
         // Throw an error if the response contains an error message.
         if (validResponse.output?.error) {
-          const errorMessage = `Transcription job ${validResponse.id} failed due to: ${validResponse.output.error}`
-          throw new Error(errorMessage)
+          throw new TranscriptionError(validResponse.id, validResponse.output.error)
         } else {
           return validResponse
         }
