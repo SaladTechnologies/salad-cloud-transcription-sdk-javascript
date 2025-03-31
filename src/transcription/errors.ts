@@ -28,9 +28,9 @@ export class TranscriptionError extends CustomError {
 export class UploadError extends CustomError {
   constructor(
     public fileName: string,
-    message: string,
+    public errorMessage: string,
   ) {
-    super(`Upload of file "${fileName}" failed: ${message}`)
+    super(`Upload of file "${fileName}" failed: ${errorMessage}`)
   }
 }
 
@@ -40,8 +40,8 @@ export class UploadError extends CustomError {
 export class SignFileError extends CustomError {
   constructor(
     public fileName: string,
-    message: string,
+    public errorMessage: string,
   ) {
-    super(`Signing file "${fileName}" failed: ${message}`)
+    super(`Signing file "${fileName}" failed: ${errorMessage}`)
   }
 }
