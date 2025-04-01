@@ -11,10 +11,11 @@ import { TranscribeRequest } from '../types'
  */
 export const transformTranscribeRequest = (transcribeRequest: TranscribeRequest): Record<string, any> => {
   const { source, organizationName, options, ...rest } = transcribeRequest
+  const { llmTranslation, srtTranslation, ...neededOptions } = options || {}
 
   const transformedOptions = options
     ? {
-        ...options,
+        ...neededOptions,
         llm_translation: options.llmTranslation?.join(', '),
         srt_translation: options.srtTranslation?.join(', '),
       }
