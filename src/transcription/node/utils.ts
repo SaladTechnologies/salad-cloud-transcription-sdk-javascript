@@ -5,6 +5,7 @@ import { createReadStream, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { filePartSizeBytesForStorage, maxFileSizeBytesForStorage } from '../constants'
+import { SignFileError, UploadError } from '../errors'
 import { Semaphore } from './semaphore'
 
 interface UploadFileResponse {
@@ -64,7 +65,7 @@ const normalizeFilePath = (filePath: string): string => {
  */
 const createFormData = async (fileSource: string): Promise<FormData> => {
   if (!existsSync(fileSource)) {
-    throw new Error(`File not found: ${fileSource}`)
+    throw new UploadError(fileSource, 'File not found')
   }
 
   const stream = createReadStream(fileSource)
@@ -79,7 +80,7 @@ const createFormData = async (fileSource: string): Promise<FormData> => {
     formData.append('file', stream)
     return formData
   } catch (error: any) {
-    throw new Error(`Error reading file: ${error.message || 'Unknown error'}`)
+    throw new UploadError(fileSource, error.message || 'Error reading file')
   }
 }
 
@@ -95,6 +96,7 @@ const uploadFile = async (
   axiosInstance: AxiosInstance,
   formData: FormData,
   url: string,
+  fileName: string,
 ): Promise<UploadFileResponse> => {
   const headers = {
     ...formData.getHeaders(),
@@ -104,7 +106,7 @@ const uploadFile = async (
     const response = await axiosInstance.put(url, formData, { headers })
     return response.data
   } catch (error: any) {
-    throw new Error(`Error uploading file: ${error?.message || 'Unknown error'}`)
+    throw new UploadError(fileName, error.message)
   }
 }
 
@@ -115,7 +117,7 @@ const uploadFile = async (
  * @param url - The sign file endpoint URL.
  * @returns A promise that resolves to the signed file response.
  */
-const signFile = async (axiosInstance: AxiosInstance, url: string): Promise<UploadFileResponse> => {
+const signFile = async (axiosInstance: AxiosInstance, url: string, fileName: string): Promise<UploadFileResponse> => {
   const requestBody = {
     method: 'GET',
     exp: '3600',
@@ -125,7 +127,7 @@ const signFile = async (axiosInstance: AxiosInstance, url: string): Promise<Uplo
     const response = await axiosInstance.post(url, requestBody)
     return response.data
   } catch (error: any) {
-    throw new Error(`Error signing file: ${error?.message || 'Unknown error'}`)
+    throw new SignFileError(fileName, error.message)
   }
 }
 
@@ -316,7 +318,7 @@ export const getTranscriptionLocalFileSource = async (
         organizationName,
         filePartSizeBytesForStorage,
       )
-      const { url } = await signFile(axiosInstance, signFileRequestUrl)
+      const { url } = await signFile(axiosInstance, signFileRequestUrl, fileName)
       return url
     }
   } catch (err) {
@@ -325,9 +327,9 @@ export const getTranscriptionLocalFileSource = async (
 
   // Create FormData for the file and upload it.
   const formData = await createFormData(normalizedFilePath)
-  await uploadFile(axiosInstance, formData, uploadFileRequestUrl)
+  await uploadFile(axiosInstance, formData, uploadFileRequestUrl, fileName)
 
   // Sign the file to obtain a remote URL.
-  const { url } = await signFile(axiosInstance, signFileRequestUrl)
+  const { url } = await signFile(axiosInstance, signFileRequestUrl, fileName)
   return url
 }
