@@ -212,7 +212,6 @@ const readFileInChunks = async (
     throw new Error(`Error opening file: ${filePath}`)
   }
 
-  // Calculate the number of chunks and the balanced chunk size
   const numChunks = Math.ceil(fileSize / maxChunkSizeBytes)
   const realChunkSize = Math.ceil(fileSize / numChunks)
 
@@ -220,12 +219,10 @@ const readFileInChunks = async (
   let chunkNumber = 1
   const allChunks: Promise<{ etag: string; partNumber: number }>[] = []
 
-  // Read the file in chunks sequentially
   while (chunkNumber <= numChunks) {
     const buffer = Buffer.alloc(realChunkSize)
     const { bytesRead: bytesJustRead } = await fileHandle.read(buffer, 0, realChunkSize, bytesRead)
     bytesRead += bytesJustRead
-    // Process each chunk using the provided callback function
     allChunks.push(eachChunk(chunkNumber, buffer))
     chunkNumber++
   }
@@ -255,19 +252,15 @@ const uploadFileInParts = async (
   organizationName: string,
   partSizeBytes: number,
 ): Promise<void> => {
-  // Construct URLs for the upload process
   const filesUploadUrl = `/organizations/${organizationName}/files/${fileName}`
   const filePartsUploadUrl = `/organizations/${organizationName}/file_parts/${fileName}`
 
   const createUploadUrl = `${filesUploadUrl}?action=mpu-create`
 
-  // Start the upload process by creating an upload session and getting an uploadId
   const uploadId = await createUpload(axiosInstance, createUploadUrl)
 
   const semaphore = new Semaphore(3)
 
-  // Read file in chunks and upload each part sequentially.
-  // Note: You could introduce a semaphore here to limit concurrent uploads if desired.
   const parts = await readFileInChunks(filePath, fileSize, partSizeBytes, async (partNumber, chunk) => {
     await semaphore.acquire()
     try {
@@ -278,7 +271,6 @@ const uploadFileInParts = async (
     }
   })
 
-  // Finalize the upload by sending the parts info.
   await completeUpload(axiosInstance, filesUploadUrl, uploadId, parts)
 }
 
@@ -298,7 +290,6 @@ export const getTranscriptionLocalFileSource = async (
   source: string,
   organizationName: string,
 ): Promise<string> => {
-  // Normalize the local file path and extract the file name.
   const normalizedFilePath = normalizeFilePath(source)
   const fileName = path.basename(normalizedFilePath)
 
@@ -325,11 +316,9 @@ export const getTranscriptionLocalFileSource = async (
     throw new Error(`Error uploading file: ${source} with error: ${err}`)
   }
 
-  // Create FormData for the file and upload it.
   const formData = await createFormData(normalizedFilePath)
   await uploadFile(axiosInstance, formData, uploadFileRequestUrl, fileName)
 
-  // Sign the file to obtain a remote URL.
   const { url } = await signFile(axiosInstance, signFileRequestUrl, fileName)
   return url
 }
