@@ -1,9 +1,12 @@
 import { AxiosInstance } from 'axios'
 import FormData from 'form-data'
+import fs from 'fs/promises'
 import { createReadStream, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { filePartSizeBytesForStorage, maxFileSizeBytesForStorage } from '../constants'
 import { SignFileError, UploadError } from '../errors'
+import { Semaphore } from './semaphore'
 
 interface UploadFileResponse {
   url: string
@@ -129,6 +132,170 @@ const signFile = async (axiosInstance: AxiosInstance, url: string, fileName: str
 }
 
 /**
+ * Initiates a multipart upload.
+ * @param axiosInstance - The Axios instance for making HTTP requests.
+ * @param url - The upload URL.
+ * @param signal - Optional An AbortSignal to cancel the operation.
+ * @returns The uploadId.
+ */
+const createUpload = async (axiosInstance: AxiosInstance, url: string, signal?: AbortSignal): Promise<string> => {
+  const response = await axiosInstance.put(url, null, { signal: signal })
+  const { uploadId } = response.data
+  return uploadId
+}
+
+/**
+ * Uploads a single part (chunk) of the file.
+ * @param axiosInstance - The Axios instance for making HTTP requests.
+ * @param url - The upload URL.
+ * @param uploadId - The ID of the current multipart upload session.
+ * @param partNumber - The sequential part number.
+ * @param part - The chunk (Buffer) to be uploaded.
+ * @param signal - Optional An AbortSignal to cancel the operation.
+ * @returns The response data for this part, which should contain at least an etag and partNumber.
+ */
+const uploadPart = async (
+  axiosInstance: AxiosInstance,
+  url: string,
+  uploadId: string,
+  partNumber: number,
+  part: Buffer,
+  signal?: AbortSignal,
+): Promise<{ etag: string; partNumber: number }> => {
+  const partUrl = `${url}?uploadId=${uploadId}&partNumber=${partNumber}`
+  const response = await axiosInstance.put(partUrl, part, {
+    headers: {
+      'Content-Type': 'application/octet-stream',
+    },
+    signal: signal,
+  })
+  return response.data
+}
+
+/**
+ * Completes the multipart upload to combine all parts.
+ * @param axiosInstance - The Axios instance for making HTTP requests.
+ * @param url - The upload URL.
+ * @param uploadId - The ID of the current multipart upload session.
+ * @param parts - Array of part information objects (each contains etag and partNumber).
+ * @param signal - Optional An AbortSignal to cancel the operation.
+ * @returns Response to the complete upload request.
+ */
+const completeUpload = async (
+  axiosInstance: AxiosInstance,
+  url: string,
+  uploadId: string,
+  parts: { etag: string; partNumber: number }[],
+  signal?: AbortSignal,
+): Promise<any> => {
+  const completeUrl = `${url}?action=mpu-complete&uploadId=${uploadId}`
+  const response = await axiosInstance.put(completeUrl, JSON.stringify({ parts }), {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    signal: signal,
+  })
+  return response
+}
+
+/**
+ * Reads a file in chunks and processes each chunk with a provided callback function.
+ * @param filePath - The full path of the file to be read.
+ * @param fileSize - The total size of the file in bytes.
+ * @param maxChunkSizeBytes - The maximum size for each chunk.
+ * @param eachChunk - Async callback that processes each chunk; should return an object containing etag and partNumber.
+ * @param signal - Optional An AbortSignal to cancel the operation.
+ * @returns A promise that resolves to an array of results from processing each chunk.
+ */
+const readFileInChunks = async (
+  filePath: string,
+  fileSize: number,
+  maxChunkSizeBytes: number,
+  eachChunk: (chunkNumber: number, chunk: Buffer) => Promise<{ etag: string; partNumber: number }>,
+  signal?: AbortSignal,
+): Promise<{ etag: string; partNumber: number }[]> => {
+  let fileHandle: fs.FileHandle
+  try {
+    fileHandle = await fs.open(filePath, 'r')
+  } catch {
+    throw new Error(`Error opening file: ${filePath}`)
+  }
+
+  const numChunks = Math.ceil(fileSize / maxChunkSizeBytes)
+  const realChunkSize = Math.ceil(fileSize / numChunks)
+
+  let bytesRead = 0
+  let chunkNumber = 1
+  const allChunks: { etag: string; partNumber: number }[] = []
+
+  while (chunkNumber <= numChunks) {
+    if (signal?.aborted) {
+      throw new Error('Operation aborted')
+    }
+    const buffer = Buffer.alloc(realChunkSize)
+    const { bytesRead: bytesJustRead } = await fileHandle.read(buffer, 0, realChunkSize, bytesRead)
+    bytesRead += bytesJustRead
+    const chunk = await eachChunk(chunkNumber, buffer)
+    allChunks.push(chunk)
+    chunkNumber++
+  }
+
+  await fileHandle.close()
+  return allChunks
+}
+
+/**
+ * Orchestrates the multipart file upload process:
+ * 1. Initiates the upload session.
+ * 2. Reads the file in chunks and uploads each part.
+ * 3. Completes the upload once all parts are processed.
+ *
+ * @param axiosInstance - The Axios instance for making HTTP requests.
+ * @param fileName - The name of the file being uploaded.
+ * @param filePath - The path of the file on the local filesystem.
+ * @param fileSize - The total size of the file in bytes.
+ * @param organizationName - The name of the organization (used in URL paths).
+ * @param partSizeBytes - The maximum size in bytes for each file part.
+ * @param signal - Optional An AbortSignal to cancel the operation.
+ */
+const uploadFileInParts = async (
+  axiosInstance: AxiosInstance,
+  fileName: string,
+  filePath: string,
+  fileSize: number,
+  organizationName: string,
+  partSizeBytes: number,
+  signal?: AbortSignal,
+): Promise<void> => {
+  const filesUploadUrl = `/organizations/${organizationName}/files/${fileName}`
+  const filePartsUploadUrl = `/organizations/${organizationName}/file_parts/${fileName}`
+
+  const createUploadUrl = `${filesUploadUrl}?action=mpu-create`
+
+  const uploadId = await createUpload(axiosInstance, createUploadUrl, signal)
+
+  const semaphore = new Semaphore(3)
+
+  const parts = await readFileInChunks(
+    filePath,
+    fileSize,
+    partSizeBytes,
+    async (partNumber, chunk) => {
+      await semaphore.acquire()
+      try {
+        const partResp = await uploadPart(axiosInstance, filePartsUploadUrl, uploadId, partNumber, chunk, signal)
+        return partResp
+      } finally {
+        semaphore.release()
+      }
+    },
+    signal,
+  )
+
+  await completeUpload(axiosInstance, filesUploadUrl, uploadId, parts, signal)
+}
+
+/**
  * Returns a remote URL for transcription.
  *
  * If the provided source is already remote, returns it.
@@ -137,24 +304,45 @@ const signFile = async (axiosInstance: AxiosInstance, url: string, fileName: str
  * @param axiosInstance - The axios instance configured for API requests.
  * @param source - The file source, which may be a local path or remote URL.
  * @param organizationName - The organization name.
+ * @param signal - Optional An AbortSignal to cancel the operation.
  * @returns A promise that resolves to a remote URL.
  */
 export const getTranscriptionLocalFileSource = async (
   axiosInstance: AxiosInstance,
   source: string,
   organizationName: string,
+  signal?: AbortSignal,
 ): Promise<string> => {
-  // Normalize the local file path and extract the file name.
   const normalizedFilePath = normalizeFilePath(source)
   const fileName = path.basename(normalizedFilePath)
 
-  // Create FormData for the file and upload it.
-  const formData = await createFormData(normalizedFilePath)
   const uploadFileRequestUrl = `/organizations/${organizationName}/files/${fileName}`
+  const signFileRequestUrl = `/organizations/${organizationName}/file_tokens/${fileName}`
+
+  try {
+    const stats = await fs.stat(normalizedFilePath)
+    const fileSize = stats.size
+
+    if (fileSize > maxFileSizeBytesForStorage) {
+      await uploadFileInParts(
+        axiosInstance,
+        fileName,
+        normalizedFilePath,
+        fileSize,
+        organizationName,
+        filePartSizeBytesForStorage,
+        signal,
+      )
+      const { url } = await signFile(axiosInstance, signFileRequestUrl, fileName)
+      return url
+    }
+  } catch (error: any) {
+    throw new UploadError(fileName, error.message)
+  }
+
+  const formData = await createFormData(normalizedFilePath)
   await uploadFile(axiosInstance, formData, uploadFileRequestUrl, fileName)
 
-  // Sign the file to obtain a remote URL.
-  const signFileRequestUrl = `/organizations/${organizationName}/file_tokens/${fileName}`
   const { url } = await signFile(axiosInstance, signFileRequestUrl, fileName)
   return url
 }

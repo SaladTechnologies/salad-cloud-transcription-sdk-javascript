@@ -7,6 +7,7 @@ import {
   GetTranscriptionRequestSchema,
   ListTranscriptionsRequestSchema,
   ListTranscriptionsResponseSchema,
+  ProcessWebhookRequestSchema,
   StopTranscriptionRequestSchema,
   TranscribeRequestSchema,
   TranscribeResponseSchema,
@@ -14,6 +15,7 @@ import {
 import {
   GetTranscriptionRequest,
   ListTranscriptionsResponse,
+  ProcessWebhookRequest,
   SaladCloudTranscriptionSdkConfig,
   Status,
   StopTranscriptionRequest,
@@ -22,6 +24,7 @@ import {
   TranscribeResponse,
 } from './types'
 import { isRemoteFile, transformTranscribeRequest } from './utils'
+import { Webhook } from './webhook'
 
 export class SaladCloudTranscriptionSdk {
   private saladCloudSdk: SaladCloudSdk
@@ -49,6 +52,7 @@ export class SaladCloudTranscriptionSdk {
    * @param source - A local file path or a remote URL.
    * @param options - Optional transcription options.
    * @param webhookUrl - Optional webhook URL for callbacks.
+   * @param signal - Optional An AbortSignal to cancel the operation.
    * @returns A promise that resolves to the validated transcription response.
    */
   async transcribe(
@@ -56,13 +60,19 @@ export class SaladCloudTranscriptionSdk {
     source: string,
     options?: TranscribeOptions,
     webhookUrl?: string,
+    signal?: AbortSignal,
   ): Promise<TranscribeResponse> {
     let transcriptionSource: string
     if (isRemoteFile(source)) {
       transcriptionSource = source
     } else {
       try {
-        transcriptionSource = await getTranscriptionLocalFileSource(this.axiosInstance, source, organizationName)
+        transcriptionSource = await getTranscriptionLocalFileSource(
+          this.axiosInstance,
+          source,
+          organizationName,
+          signal,
+        )
       } catch (error) {
         throw error
       }
@@ -82,11 +92,21 @@ export class SaladCloudTranscriptionSdk {
 
     try {
       // Send the transcription request.
-      const response = await this.saladCloudSdk.inferenceEndpoints.createInferenceEndpointJob(
+      const createInferenceEndpointJobResponse = this.saladCloudSdk.inferenceEndpoints.createInferenceEndpointJob(
         validRequest.organizationName,
         transcribeInferenceEndpointName,
         transformedRequest,
       )
+
+      // If an AbortSignal is provided, create an abort promise that rejects when aborted.
+      const abortPromise = new Promise<never>((_resolve, reject) => {
+        if (signal) {
+          signal.addEventListener('abort', () => reject(new Error('Operation aborted')))
+        }
+      })
+
+      // Race the transcription job promise with the abort promise.
+      const response = await Promise.race([createInferenceEndpointJobResponse, abortPromise])
 
       // Validate and return the response payload.
       return TranscribeResponseSchema.parse(response.data)
@@ -178,6 +198,44 @@ export class SaladCloudTranscriptionSdk {
   }
 
   /**
+   * Processes a webhook request.
+   *
+   * @param payload - The raw payload received from the webhook request.
+   * @param base64Secret - The base64 encoded secret used for signature verification.
+   * @param webhookId - The unique identifier provided in the webhook.
+   * @param webhookTimestamp - The timestamp provided in the webhook.
+   * @param webhookSignature - The signature provided in the webhook.
+   * @returns A promise that resolves to the result of the webhook verification.
+   */
+  async processWebhookRequest(
+    payload: any,
+    base64Secret: string,
+    webhookId: string,
+    webhookTimestamp: string,
+    webhookSignature: string,
+  ): Promise<unknown> {
+    const request: ProcessWebhookRequest = {
+      payload,
+      base64Secret,
+      webhookId,
+      webhookTimestamp,
+      webhookSignature,
+    }
+
+    // Validate the request payload.
+    const validRequest = ProcessWebhookRequestSchema.parse(request)
+
+    const webhookHeaders = {
+      'webhook-id': validRequest.webhookId,
+      'webhook-timestamp': validRequest.webhookTimestamp,
+      'webhook-signature': validRequest.webhookSignature,
+    }
+
+    const wh = new Webhook(validRequest.base64Secret)
+    return wh.verify(validRequest.payload, webhookHeaders)
+  }
+
+  /**
    * Polls the transcription status until a final state is reached.
    *
    * This method continuously polls the status endpoint until the job reaches a
@@ -185,7 +243,7 @@ export class SaladCloudTranscriptionSdk {
    *
    * @param organizationName - The organization name.
    * @param transcriptionId - The unique identifier for the transcription job.
-   * @param signal - *(Optional)* An AbortSignal to cancel the polling operation.
+   * @param signal - Optional An AbortSignal to cancel the polling operation.
    * @returns A promise that resolves to a validated TranscribeResponse.
    */
   async waitFor(organizationName: string, transcriptionId: string, signal?: AbortSignal): Promise<TranscribeResponse> {
