@@ -8,6 +8,13 @@ export const GetTranscriptionRequestSchema = z
   })
   .strict()
 
+export const StopTranscriptionRequestSchema = z
+  .object({
+    transcriptionId: z.string(),
+    organizationName: z.string(),
+  })
+  .strict()
+
 export const ListTranscriptionsRequestSchema = z
   .object({
     organizationName: z.string(),
@@ -33,6 +40,7 @@ export const TranscribeRequestSchema = z
         srtTranslation: z.array(z.nativeEnum(TranslationLanguage)).optional(),
         customVocabulary: z.string().optional(),
         customPrompt: z.string().optional(),
+        classificationLabels: z.string().optional(),
         overallSentimentAnalysis: z.boolean().optional(),
         overallClassification: z.boolean().optional(),
       })
@@ -50,7 +58,8 @@ export const TranscribeRequestSchema = z
         srt_translation: data.srtTranslation,
         custom_vocabulary: data.customVocabulary,
         custom_prompt: data.customPrompt,
-        overall_sentiment_analysis: data.overallSentimentAnalysis,
+        overall_sentiment_analysis: data.classificationLabels,
+        classification_labels: data.overallSentimentAnalysis,
         overall_classification: data.overallClassification,
       }))
       .optional(),
@@ -104,60 +113,77 @@ export const TranscribeResponseSchema = z
           duration: z.number(),
           processing_time: z.number(),
         }),
+        z.object({
+          error: z.string(),
+          duration: z.number(),
+        }),
       ])
       .optional(),
     createTime: z.string(),
     updateTime: z.string(),
     webhook: z.string().url().optional().describe('Webhook URL to receive transcription updates.'),
   })
-  .transform((data) => ({
-    id: data.id,
-    input: {
-      url: data.input.url,
-      languageCode: data.input.language_code,
-      returnAsFile: data.input.return_as_file,
-      wordLevelTimestamps: data.input.word_level_timestamps,
-      diarization: data.input.diarization,
-      sentenceDiarization: data.input.sentence_diarization,
-      srt: data.input.srt,
-      translate: data.input.translate,
-      llmTranslation: data.input.llm_translation,
-      srtTranslation: data.input.srt_translation,
-      customPrompt: data.input.custom_prompt,
-      customVocabulary: data.input.custom_vocabulary,
-      sentenceLevelTimestamps: data.input.sentence_level_timestamps,
-      summarize: data.input.summarize,
-      overallClassification: data.input.overall_classification,
-      overallSentimentAnalysis: data.input.overall_sentiment_analysis,
-      classificationLabels: data.input.classification_labels,
-    },
-    inferenceEndpointName: data.inferenceEndpointName,
-    metadata: data.metadata,
-    status: data.status,
-    events: data.events.map((event) => ({
-      action: event.action,
-      time: event.time,
-    })),
-    organizationName: data.organizationName,
-    output: data.output
-      ? 'text' in data.output
-        ? {
-            text: data.output.text,
-            durationInSeconds: data.output.duration_in_seconds,
-            duration: data.output.duration,
-            processingTime: data.output.processing_time,
-          }
-        : {
-            url: data.output.url,
-            durationInSeconds: data.output.duration_in_seconds,
-            duration: data.output.duration,
-            processingTime: data.output.processing_time,
-          }
-      : undefined,
-    createTime: data.createTime,
-    updateTime: data.updateTime,
-    webhookUrl: data.webhook,
-  }))
+  .transform((data) => {
+    let output
+
+    if (data.output) {
+      if ('error' in data.output) {
+        output = {
+          error: data.output.error,
+          duration: data.output.duration,
+        }
+      } else if ('text' in data.output) {
+        output = {
+          text: data.output.text,
+          durationInSeconds: data.output.duration_in_seconds,
+          duration: data.output.duration,
+          processingTime: data.output.processing_time,
+        }
+      } else {
+        output = {
+          url: data.output.url,
+          durationInSeconds: data.output.duration_in_seconds,
+          duration: data.output.duration,
+          processingTime: data.output.processing_time,
+        }
+      }
+    }
+
+    return {
+      id: data.id,
+      input: {
+        url: data.input.url,
+        languageCode: data.input.language_code,
+        returnAsFile: data.input.return_as_file,
+        wordLevelTimestamps: data.input.word_level_timestamps,
+        diarization: data.input.diarization,
+        sentenceDiarization: data.input.sentence_diarization,
+        srt: data.input.srt,
+        translate: data.input.translate,
+        llmTranslation: data.input.llm_translation,
+        srtTranslation: data.input.srt_translation,
+        customPrompt: data.input.custom_prompt,
+        customVocabulary: data.input.custom_vocabulary,
+        sentenceLevelTimestamps: data.input.sentence_level_timestamps,
+        summarize: data.input.summarize,
+        classificationLabels: data.input.classification_labels,
+        overallClassification: data.input.overall_classification,
+        overallSentimentAnalysis: data.input.overall_sentiment_analysis,
+      },
+      inferenceEndpointName: data.inferenceEndpointName,
+      metadata: data.metadata,
+      status: data.status,
+      events: data.events.map((event) => ({
+        action: event.action,
+        time: event.time,
+      })),
+      organizationName: data.organizationName,
+      output,
+      createTime: data.createTime,
+      updateTime: data.updateTime,
+      webhookUrl: data.webhook,
+    }
+  })
 
 export const ListTranscriptionsResponseSchema = z.object({
   items: z.array(TranscribeResponseSchema),
