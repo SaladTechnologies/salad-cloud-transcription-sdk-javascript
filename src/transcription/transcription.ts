@@ -52,6 +52,7 @@ export class SaladCloudTranscriptionSdk {
    * @param source - A local file path or a remote URL.
    * @param options - Optional transcription options.
    * @param webhookUrl - Optional webhook URL for callbacks.
+   * @param signal - Optional An AbortSignal to cancel the operation.
    * @returns A promise that resolves to the validated transcription response.
    */
   async transcribe(
@@ -59,13 +60,19 @@ export class SaladCloudTranscriptionSdk {
     source: string,
     options?: TranscribeOptions,
     webhookUrl?: string,
+    signal?: AbortSignal,
   ): Promise<TranscribeResponse> {
     let transcriptionSource: string
     if (isRemoteFile(source)) {
       transcriptionSource = source
     } else {
       try {
-        transcriptionSource = await getTranscriptionLocalFileSource(this.axiosInstance, source, organizationName)
+        transcriptionSource = await getTranscriptionLocalFileSource(
+          this.axiosInstance,
+          source,
+          organizationName,
+          signal,
+        )
       } catch (error) {
         throw error
       }
@@ -85,11 +92,21 @@ export class SaladCloudTranscriptionSdk {
 
     try {
       // Send the transcription request.
-      const response = await this.saladCloudSdk.inferenceEndpoints.createInferenceEndpointJob(
+      const createInferenceEndpointJobResponse = this.saladCloudSdk.inferenceEndpoints.createInferenceEndpointJob(
         validRequest.organizationName,
         transcribeInferenceEndpointName,
         transformedRequest,
       )
+
+      // If an AbortSignal is provided, create an abort promise that rejects when aborted.
+      const abortPromise = new Promise<never>((_resolve, reject) => {
+        if (signal) {
+          signal.addEventListener('abort', () => reject(new Error('Operation aborted')))
+        }
+      })
+
+      // Race the transcription job promise with the abort promise.
+      const response = await Promise.race([createInferenceEndpointJobResponse, abortPromise])
 
       // Validate and return the response payload.
       return TranscribeResponseSchema.parse(response.data)
@@ -226,7 +243,7 @@ export class SaladCloudTranscriptionSdk {
    *
    * @param organizationName - The organization name.
    * @param transcriptionId - The unique identifier for the transcription job.
-   * @param signal - *(Optional)* An AbortSignal to cancel the polling operation.
+   * @param signal - Optional An AbortSignal to cancel the polling operation.
    * @returns A promise that resolves to a validated TranscribeResponse.
    */
   async waitFor(organizationName: string, transcriptionId: string, signal?: AbortSignal): Promise<TranscribeResponse> {
