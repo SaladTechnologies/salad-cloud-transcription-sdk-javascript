@@ -1,6 +1,7 @@
 import { SaladCloudSdk } from '@saladtechnologies-oss/salad-cloud-sdk'
 import axios, { AxiosInstance } from 'axios'
 import { oneMinuteInMs, oneSecondInMs, transcribeInferenceEndpointName } from './constants'
+import { TranscriptionError } from './errors'
 import { getTranscriptionLocalFileSource } from './node'
 import {
   GetTranscriptionRequestSchema,
@@ -51,6 +52,7 @@ export class SaladCloudTranscriptionSdk {
    * @param source - A local file path or a remote URL.
    * @param options - Optional transcription options.
    * @param webhookUrl - Optional webhook URL for callbacks.
+   * @param signal - Optional An AbortSignal to cancel the operation.
    * @returns A promise that resolves to the validated transcription response.
    */
   async transcribe(
@@ -58,13 +60,19 @@ export class SaladCloudTranscriptionSdk {
     source: string,
     options?: TranscribeOptions,
     webhookUrl?: string,
+    signal?: AbortSignal,
   ): Promise<TranscribeResponse> {
     let transcriptionSource: string
     if (isRemoteFile(source)) {
       transcriptionSource = source
     } else {
       try {
-        transcriptionSource = await getTranscriptionLocalFileSource(this.axiosInstance, source, organizationName)
+        transcriptionSource = await getTranscriptionLocalFileSource(
+          this.axiosInstance,
+          source,
+          organizationName,
+          signal,
+        )
       } catch (error) {
         throw error
       }
@@ -84,11 +92,21 @@ export class SaladCloudTranscriptionSdk {
 
     try {
       // Send the transcription request.
-      const response = await this.saladCloudSdk.inferenceEndpoints.createInferenceEndpointJob(
+      const createInferenceEndpointJobResponse = this.saladCloudSdk.inferenceEndpoints.createInferenceEndpointJob(
         validRequest.organizationName,
         transcribeInferenceEndpointName,
         transformedRequest,
       )
+
+      // If an AbortSignal is provided, create an abort promise that rejects when aborted.
+      const abortPromise = new Promise<never>((_resolve, reject) => {
+        if (signal) {
+          signal.addEventListener('abort', () => reject(new Error('Operation aborted')))
+        }
+      })
+
+      // Race the transcription job promise with the abort promise.
+      const response = await Promise.race([createInferenceEndpointJobResponse, abortPromise])
 
       // Validate and return the response payload.
       return TranscribeResponseSchema.parse(response.data)
@@ -123,8 +141,7 @@ export class SaladCloudTranscriptionSdk {
 
       // Throw an error if the response contains an error message.
       if (validResponse.output?.error) {
-        const errorMessage = `Transcription job ${validResponse.id} failed due to: ${validResponse.output.error}`
-        throw new Error(errorMessage)
+        throw new TranscriptionError(validResponse.id, validResponse.output.error)
       } else {
         return validResponse
       }
@@ -226,7 +243,7 @@ export class SaladCloudTranscriptionSdk {
    *
    * @param organizationName - The organization name.
    * @param transcriptionId - The unique identifier for the transcription job.
-   * @param signal - *(Optional)* An AbortSignal to cancel the polling operation.
+   * @param signal - Optional An AbortSignal to cancel the polling operation.
    * @returns A promise that resolves to a validated TranscribeResponse.
    */
   async waitFor(organizationName: string, transcriptionId: string, signal?: AbortSignal): Promise<TranscribeResponse> {
@@ -258,8 +275,7 @@ export class SaladCloudTranscriptionSdk {
       if (validResponse.status === Status.Succeeded || validResponse.status === Status.Failed) {
         // Throw an error if the response contains an error message.
         if (validResponse.output?.error) {
-          const errorMessage = `Transcription job ${validResponse.id} failed due to: ${validResponse.output.error}`
-          throw new Error(errorMessage)
+          throw new TranscriptionError(validResponse.id, validResponse.output.error)
         } else {
           return validResponse
         }
