@@ -207,7 +207,7 @@ describe('readFileInChunks', () => {
   })
 })
 
-describe('uploadFileInParts with createAxiosInstance', () => {
+describe('uploadFileInParts', () => {
   let fakeFileHandle: ReturnType<typeof setupFakeFileHandle>
 
   beforeEach(() => {

@@ -101,6 +101,9 @@ const sdk = new SaladCloudTranscriptionSdk({
   apiKey: 'YOUR_API_KEY',
 })
 
+const controller = new AbortController()
+const signal = controller.signal
+
 const transcribe = await sdk.transcribe(
   'organization_name', // organization name
   'path_to_file_or_url/video.mp4', // local file or a remote URL
@@ -121,11 +124,15 @@ const sdk = new SaladCloudTranscriptionSdk({
   apiKey: 'YOUR_API_KEY',
 })
 
+const controller = new AbortController()
+const signal = controller.signal
+
 const transcribe = await sdk.transcribe(
   'organization_name',
   'path_to_file_or_url/video.mp4',
   { language: 'en-US' },
   'https://your-webhook-endpoint.com',
+  signal,
 )
 ```
 
