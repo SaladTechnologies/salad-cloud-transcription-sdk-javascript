@@ -1,9 +1,9 @@
 import FormData from 'form-data'
 import fsPromises from 'fs/promises'
-import { FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as utils from '../src/transcription/node'
 import {
   completeUpload,
   createFormData,
@@ -14,26 +14,19 @@ import {
   uploadFile,
   uploadPart,
 } from '../src/transcription/node'
-
-const testUrl = 'http://test-url.com'
-const testUploadId = '12345'
-const testFilePath = '/fake/path/file.txt'
-const testFileName = 'file.mp4'
-
-/**
- * Helper to create an axios mock instance.
- *
- * @param method - HTTP method to mock ('put' or 'post')
- * @param response - The response to resolve with (or error message if shouldError is true)
- * @param shouldError - Whether the axios method should throw an error
- */
-const createAxiosInstance = <T extends 'put' | 'post'>(method: T, response: any, shouldError = false) => {
-  const instance = {} as Record<T, any>
-  instance[method] = shouldError
-    ? vi.fn().mockRejectedValue(new Error(typeof response === 'string' ? response : 'Error'))
-    : vi.fn().mockResolvedValue({ data: response })
-  return instance
-}
+import {
+  createAxiosInstance,
+  setupFakeFileHandle,
+  testFileName,
+  testFilePath,
+  testFileSize,
+  testMaxChunkSize,
+  testNumChunks,
+  testOrganizationName,
+  testRealChunkSize,
+  testUploadId,
+  testUrl,
+} from './shared'
 
 describe('normalizeFilePath', () => {
   it('should resolve relative paths to absolute paths', () => {
@@ -158,7 +151,7 @@ describe('uploadPart', () => {
 
 describe('completeUpload', () => {
   const parts = [
-    { etag: 'etag1', partNumber: 1 },
+    { partNumber: 1, etag: 'etag123' },
     { etag: 'etag2', partNumber: 2 },
   ]
   const completeResponse = { status: 'completed' }
@@ -176,31 +169,11 @@ describe('completeUpload', () => {
 })
 
 describe('readFileInChunks', () => {
-  const fileSize = 1000
-  const maxChunkSizeForTest = 400
-  const numChunks = Math.ceil(fileSize / maxChunkSizeForTest)
-  const realChunkSize = Math.ceil(fileSize / numChunks)
-
-  let fakeFileHandle: {
-    read: (...args: any[]) => Promise<{ bytesRead: number }>
-    close: () => Promise<void>
-  }
-  let readCalls = 0
+  let fakeFileHandle: ReturnType<typeof setupFakeFileHandle>
 
   beforeEach(() => {
-    readCalls = 0
-    fakeFileHandle = {
-      read: vi.fn().mockImplementation(async (_buffer: Buffer, _offset: number, length: number, _position: number) => {
-        readCalls++
-        if (readCalls < numChunks) {
-          return { bytesRead: length }
-        } else {
-          return { bytesRead: fileSize - (numChunks - 1) * realChunkSize }
-        }
-      }),
-      close: vi.fn().mockResolvedValue(undefined),
-    }
-    vi.spyOn(fsPromises, 'open').mockResolvedValue(fakeFileHandle as unknown as FileHandle)
+    fakeFileHandle = setupFakeFileHandle(testFileSize, testNumChunks, testRealChunkSize)
+    vi.spyOn(fsPromises, 'open').mockResolvedValue(fakeFileHandle as any)
   })
 
   afterEach(() => {
@@ -208,16 +181,16 @@ describe('readFileInChunks', () => {
   })
 
   it('should process file chunks correctly', async () => {
-    const eachChunk = vi.fn().mockImplementation(async (chunkNumber: number, chunk: Buffer) => {
+    const eachChunk = vi.fn().mockImplementation(async (chunkNumber: number) => {
       return { etag: `etag-${chunkNumber}`, partNumber: chunkNumber }
     })
-    const results = await readFileInChunks(testFilePath, fileSize, maxChunkSizeForTest, eachChunk)
+    const results = await readFileInChunks(testFilePath, testFileSize, testMaxChunkSize, eachChunk)
     expect(fsPromises.open).toHaveBeenCalledWith(testFilePath, 'r')
-    expect(fakeFileHandle.read).toHaveBeenCalledTimes(numChunks)
-    expect(eachChunk).toHaveBeenCalledTimes(numChunks)
+    expect(fakeFileHandle.read).toHaveBeenCalledTimes(testNumChunks)
+    expect(eachChunk).toHaveBeenCalledTimes(testNumChunks)
     expect(fakeFileHandle.close).toHaveBeenCalled()
     expect(results).toEqual(
-      Array.from({ length: numChunks }, (_, i) => ({
+      Array.from({ length: testNumChunks }, (_, i) => ({
         etag: `etag-${i + 1}`,
         partNumber: i + 1,
       })),
@@ -227,9 +200,51 @@ describe('readFileInChunks', () => {
   it('should throw an error when file open fails', async () => {
     const openSpy = vi.spyOn(fsPromises, 'open').mockRejectedValue(new Error('open error'))
     const eachChunk = vi.fn()
-    await expect(readFileInChunks(testFilePath, fileSize, maxChunkSizeForTest, eachChunk)).rejects.toThrow(
+    await expect(readFileInChunks(testFilePath, testFileSize, testMaxChunkSize, eachChunk)).rejects.toThrow(
       `Error opening file: ${testFilePath}`,
     )
     openSpy.mockRestore()
+  })
+})
+
+describe('uploadFileInParts with createAxiosInstance', () => {
+  let fakeFileHandle: ReturnType<typeof setupFakeFileHandle>
+
+  beforeEach(() => {
+    fakeFileHandle = setupFakeFileHandle(testFileSize, testNumChunks, testRealChunkSize)
+    vi.spyOn(fsPromises, 'open').mockResolvedValue(fakeFileHandle as any)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('should orchestrate the multipart upload process using createAxiosInstance', async () => {
+    const uploadResponse = { uploadId: testUploadId }
+    const axiosInstance: any = createAxiosInstance('put', uploadResponse)
+
+    await utils.uploadFileInParts(
+      axiosInstance,
+      testFileName,
+      testFilePath,
+      testFileSize,
+      testOrganizationName,
+      testMaxChunkSize,
+    )
+
+    // Assert: Verify that the Axios instance was called with the expected URLs.
+    expect(axiosInstance.put).toHaveBeenCalledTimes(4)
+    expect(axiosInstance.put.mock.calls[0][0]).toBe(
+      `/organizations/${testOrganizationName}/files/${testFileName}?action=mpu-create`,
+    )
+    expect(axiosInstance.put.mock.calls[1][0]).toBe(
+      `/organizations/${testOrganizationName}/file_parts/${testFileName}?uploadId=${testUploadId}&partNumber=1`,
+    )
+    expect(axiosInstance.put.mock.calls[2][0]).toBe(
+      `/organizations/${testOrganizationName}/file_parts/${testFileName}?uploadId=${testUploadId}&partNumber=2`,
+    )
+    expect(axiosInstance.put.mock.calls[3][0]).toBe(
+      `/organizations/${testOrganizationName}/files/${testFileName}?action=mpu-complete&uploadId=${testUploadId}`,
+    )
   })
 })

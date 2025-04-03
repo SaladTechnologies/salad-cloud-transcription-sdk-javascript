@@ -1,0 +1,9 @@
+export const testUrl = 'http://test-url.com'
+export const testUploadId = '12345'
+export const testFilePath = '/fake/path/file.txt'
+export const testFileName = 'file.mp4'
+export const testOrganizationName = 'org_name'
+export const testFileSize = 1000
+export const testMaxChunkSize = 500
+export const testNumChunks = Math.ceil(testFileSize / testMaxChunkSize)
+export const testRealChunkSize = Math.ceil(testFileSize / testNumChunks)
