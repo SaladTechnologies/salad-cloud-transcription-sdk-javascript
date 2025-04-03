@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { TranslationLanguage } from '../src/transcription/types'
 import { isRemoteFile, transformTranscribeRequest } from '../src/transcription/utils'
+import { testOrganizationName, testUrl } from './shared'
 
 describe('transformTranscribeRequest', () => {
   it('should transform a request with translation arrays and preserve extra fields', () => {
     const transcribeRequest = {
-      source: 'http://example.com/audio.mp3',
-      organizationName: 'TestOrg',
+      source: testUrl,
+      organizationName: testOrganizationName,
       options: {
         llmTranslation: [TranslationLanguage.English, TranslationLanguage.French],
         srtTranslation: [TranslationLanguage.Spanish],
@@ -19,7 +20,7 @@ describe('transformTranscribeRequest', () => {
     expect(transformed).toEqual({
       extraField: 'extraValue',
       input: {
-        url: 'http://example.com/audio.mp3',
+        url: testUrl,
         llm_translation: `${TranslationLanguage.English}, ${TranslationLanguage.French}`,
         srt_translation: `${TranslationLanguage.Spanish}`,
       },
@@ -28,8 +29,8 @@ describe('transformTranscribeRequest', () => {
 
   it('should transform a request without options', () => {
     const transcribeRequest = {
-      source: 'http://example.com/audio.mp3',
-      organizationName: 'TestOrg',
+      source: testUrl,
+      organizationName: testOrganizationName,
       extraField: 'extraValue',
     }
 
@@ -37,15 +38,15 @@ describe('transformTranscribeRequest', () => {
     expect(transformed).toEqual({
       extraField: 'extraValue',
       input: {
-        url: 'http://example.com/audio.mp3',
+        url: testUrl,
       },
     })
   })
 
   it('should transform a request with options missing translation arrays', () => {
     const transcribeRequest = {
-      source: 'http://example.com/audio.mp3',
-      organizationName: 'TestOrg',
+      source: testUrl,
+      organizationName: testOrganizationName,
       options: {
         returnAsFile: true,
       },
@@ -56,7 +57,7 @@ describe('transformTranscribeRequest', () => {
     expect(transformed).toEqual({
       extraField: 'extraValue',
       input: {
-        url: 'http://example.com/audio.mp3',
+        url: testUrl,
         returnAsFile: true,
         llm_translation: undefined,
         srt_translation: undefined,
