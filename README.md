@@ -30,10 +30,10 @@ yarn add @saladtechnologies-oss/salad-cloud-transcription-sdk
 - [Sample Usage](#sample-usage)
 - [Features and Methods](#features-and-methods)
   - [Transcribe](#transcribe)
+  - [Transcribe and Get Updates via a Webhook](#transcribe-and-get-updates-via-a-webhook)
   - [Get](#get)
   - [Stop](#stop)
   - [List](#list)
-  - [Process Webhook Request](#process-webhook-request)
   - [WaitFor](#waitfor)
 - [Error Handling](#error-handling)
 - [License](#license)
@@ -66,14 +66,23 @@ Below is a comprehensive example demonstrating how to authenticate and transcrib
 
 ```ts
 import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
+
+const organizationName = 'organization_name'
+const file = 'file_to_path_or_url'
+
+const sdk = new SaladCloudTranscriptionSdk({ apiKey: 'YOUR_API_KEY' })
+
+const transcribe = async (): Promise<string> => {
+  const { id } = await sdk.transcribe(organizationName, file)
+  return id
+}
+
 ;(async () => {
-  const sdk = new SaladCloudTranscriptionSdk({
-    apiKey: 'YOUR_API_KEY',
-  })
-
-  const { id } = await saladCloudTranscriptionSdk.transcribe('organization_name', 'path_to_file_or_url/video.mp4')
-
-  console.log(id)
+  try {
+    await transcribe()
+  } catch (error) {
+    console.error(error)
+  }
 })()
 ```
 
@@ -86,12 +95,76 @@ The SDK exposes several key methods:
 Transcribes a file or remote source. If a local file is provided, it is uploaded before transcription.
 
 ```ts
+import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
+
+const sdk = new SaladCloudTranscriptionSdk({
+  apiKey: 'YOUR_API_KEY',
+})
+
 const transcribe = await sdk.transcribe(
   'organization_name', // organization name
   'path_to_file_or_url/video.mp4', // local file or a remote URL
   { language: 'en-US' }, // optional transcription options
-  'https://yourapp.com/webhook', // optional webhook URL for callbacks
+  'https://your-webhook-endpoint.com', // optional webhook URL for callbacks
+  signal, // optional AbortSignal to cancel the operation
 )
+```
+
+### Transcribe and Get Updates via a Webhook
+
+Transcribes a file or remote source via a Webhook.
+
+```ts
+import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
+
+const sdk = new SaladCloudTranscriptionSdk({
+  apiKey: 'YOUR_API_KEY',
+})
+
+const transcribe = await sdk.transcribe(
+  'organization_name',
+  'path_to_file_or_url/video.mp4',
+  { language: 'en-US' },
+  'https://your-webhook-endpoint.com',
+)
+```
+
+```ts
+import { SaladCloudSdk } from '@saladtechnologies-oss/salad-cloud-sdk'
+import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
+
+// In your webhook handler you need to validate the payload being sent to you:
+const handleWebhook = (payload: any): Promise<void> => {
+  const saladCloudTranscriptionSdk = new SaladCloudTranscriptionSdk({
+    apiKey: 'YOUR_API_KEY',
+  })
+
+  const saladCloudSdk = new SaladCloudSdk({
+    apiKey: 'YOUR_API_KEY',
+  })
+
+  // Extract the signing parameters from the headers.
+  const {
+    'webhook-signature': webhookSignature,
+    'webhook-timestamp': webhookTimestamp,
+    'webhook-id': webhookId,
+  } = payload.headers
+
+  // Retrieve the webhook signing secret for your organization.
+  const getWebhookSecretKeyResponse = await saladCloudSdk.webhookSecretKey.getWebhookSecretKey('organization_name')
+  const signingSecret = `whsec_${getWebhookSecretKeyResponse.data?.secretKey}`
+
+  // Process the webhook payload.
+  const job = await saladCloudTranscriptionSdk.processWebhookRequest({
+    payload,
+    signingSecret,
+    webhookId,
+    webhookTimestamp,
+    webhookSignature,
+  })
+
+  console.log('Transcription Job:', job.data)
+}
 ```
 
 ### Get
@@ -99,6 +172,12 @@ const transcribe = await sdk.transcribe(
 Retrieves the current status or result of a transcription job.
 
 ```ts
+import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
+
+const sdk = new SaladCloudTranscriptionSdk({
+  apiKey: 'YOUR_API_KEY',
+})
+
 const transcription = await sdk.get('organization_name', 'transcription_job_id')
 ```
 
@@ -107,6 +186,12 @@ const transcription = await sdk.get('organization_name', 'transcription_job_id')
 Stops (cancels) an active transcription job.
 
 ```ts
+import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
+
+const sdk = new SaladCloudTranscriptionSdk({
+  apiKey: 'YOUR_API_KEY',
+})
+
 await sdk.stop('organization_name', 'transcription_job_id')
 ```
 
@@ -115,21 +200,13 @@ await sdk.stop('organization_name', 'transcription_job_id')
 Lists all transcription jobs for a given organization.
 
 ```ts
+import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
+
+const sdk = new SaladCloudTranscriptionSdk({
+  apiKey: 'YOUR_API_KEY',
+})
+
 const transcriptionsList = await sdk.list('organization_name')
-```
-
-### Process Webhook Request
-
-Verifies and processes incoming webhook requests.
-
-```ts
-const result = await sdk.processWebhookRequest(
-  webhookPayload,
-  'base64EncodedSecret',
-  'webhook_id',
-  'webhook_timestamp',
-  'webhook_signature',
-)
 ```
 
 ### WaitFor
@@ -137,6 +214,12 @@ const result = await sdk.processWebhookRequest(
 Polls the transcription status until the job reaches a final state ("succeeded" or "failed"), a timeout is reached, or the operation is aborted.
 
 ```ts
+import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
+
+const sdk = new SaladCloudTranscriptionSdk({
+  apiKey: 'YOUR_API_KEY',
+})
+
 try {
   const finalResult = await sdk.waitFor('organization_name', 'transcription_job_id')
 } catch (error) {
