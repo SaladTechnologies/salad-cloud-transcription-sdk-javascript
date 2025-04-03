@@ -18,6 +18,7 @@ import {
 const testUrl = 'http://test-url.com'
 const testUploadId = '12345'
 const testFilePath = '/fake/path/file.txt'
+const testFileName = 'file.mp4'
 
 /**
  * Helper to create an axios mock instance.
@@ -92,7 +93,7 @@ describe('uploadFile', () => {
     const formData = new FormData()
     formData.append('test', 'data')
 
-    const result = await uploadFile(axiosInstance, formData, testUrl)
+    const result = await uploadFile(axiosInstance, formData, testUrl, testFileName)
     expect(result).toEqual(uploadResponse)
     expect(axiosInstance.put).toHaveBeenCalledWith(testUrl, formData, {
       headers: formData.getHeaders(),
@@ -100,9 +101,12 @@ describe('uploadFile', () => {
   })
 
   it('should throw an error on failure', async () => {
-    const axiosInstance: any = createAxiosInstance('put', 'Upload failed', true)
+    const putResponse = 'Upload failed'
+    const axiosInstance: any = createAxiosInstance('put', putResponse, true)
     const formData = new FormData()
-    await expect(uploadFile(axiosInstance, formData, testUrl)).rejects.toThrow(/Error uploading file/)
+    await expect(uploadFile(axiosInstance, formData, testUrl, testFileName)).rejects.toThrow(
+      `Upload of file "${testFileName}" failed: ${putResponse}`,
+    )
   })
 })
 
@@ -111,23 +115,27 @@ describe('signFile', () => {
 
   it('should return signed file data on success', async () => {
     const axiosInstance: any = createAxiosInstance('post', signResponse)
-    const result = await signFile(axiosInstance as any, testUrl)
+    const result = await signFile(axiosInstance as any, testUrl, testFileName)
     expect(result).toEqual(signResponse)
     expect(axiosInstance.post).toHaveBeenCalledWith(testUrl, { method: 'GET', exp: '3600' })
   })
 
   it('should throw an error on failure', async () => {
-    const axiosInstance: any = createAxiosInstance('post', 'Sign failed', true)
-    await expect(signFile(axiosInstance as any, testUrl)).rejects.toThrow(/Error signing file/)
+    const postResponse = 'Sign failed'
+    const axiosInstance: any = createAxiosInstance('post', postResponse, true)
+    await expect(signFile(axiosInstance as any, testUrl, testFileName)).rejects.toThrow(
+      `Signing file "${testFileName}" failed: ${postResponse}`,
+    )
   })
 })
 
 describe('createUpload', () => {
   it('should return uploadId on success', async () => {
     const axiosInstance: any = createAxiosInstance('put', { uploadId: testUploadId })
-    const uploadId = await createUpload(axiosInstance as any, testUrl)
+    const controller = new AbortController()
+    const uploadId = await createUpload(axiosInstance as any, testUrl, controller.signal)
     expect(uploadId).toBe(testUploadId)
-    expect(axiosInstance.put).toHaveBeenCalledWith(testUrl)
+    expect(axiosInstance.put).toHaveBeenCalledWith(testUrl, null, { signal: controller.signal })
   })
 })
 
