@@ -24,7 +24,7 @@ interface UploadFileResponse {
  * @param filePath - The file path string.
  * @returns A normalized absolute file path.
  */
-const normalizeFilePath = (filePath: string): string => {
+export const normalizeFilePath = (filePath: string): string => {
   // Handle file URLs (e.g. "file:///C:/path/to/file.txt")
   if (filePath.startsWith('file://')) {
     try {
@@ -63,7 +63,8 @@ const normalizeFilePath = (filePath: string): string => {
  * @param fileSource - The path to the file.
  * @returns A FormData instance containing the file.
  */
-const createFormData = async (fileSource: string): Promise<FormData> => {
+export const createFormData = async (fileSource: string): Promise<FormData> => {
+  console.log(!existsSync(fileSource))
   if (!existsSync(fileSource)) {
     throw new UploadError(fileSource, 'File not found')
   }
@@ -92,7 +93,7 @@ const createFormData = async (fileSource: string): Promise<FormData> => {
  * @param url - The upload URL.
  * @returns A promise that resolves to the upload file response.
  */
-const uploadFile = async (
+export const uploadFile = async (
   axiosInstance: AxiosInstance,
   formData: FormData,
   url: string,
@@ -117,7 +118,11 @@ const uploadFile = async (
  * @param url - The sign file endpoint URL.
  * @returns A promise that resolves to the signed file response.
  */
-const signFile = async (axiosInstance: AxiosInstance, url: string, fileName: string): Promise<UploadFileResponse> => {
+export const signFile = async (
+  axiosInstance: AxiosInstance,
+  url: string,
+  fileName: string,
+): Promise<UploadFileResponse> => {
   const requestBody = {
     method: 'GET',
     exp: '3600',
@@ -138,7 +143,11 @@ const signFile = async (axiosInstance: AxiosInstance, url: string, fileName: str
  * @param signal - Optional An AbortSignal to cancel the operation.
  * @returns The uploadId.
  */
-const createUpload = async (axiosInstance: AxiosInstance, url: string, signal?: AbortSignal): Promise<string> => {
+export const createUpload = async (
+  axiosInstance: AxiosInstance,
+  url: string,
+  signal?: AbortSignal,
+): Promise<string> => {
   const response = await axiosInstance.put(url, null, { signal: signal })
   const { uploadId } = response.data
   return uploadId
@@ -154,7 +163,7 @@ const createUpload = async (axiosInstance: AxiosInstance, url: string, signal?: 
  * @param signal - Optional An AbortSignal to cancel the operation.
  * @returns The response data for this part, which should contain at least an etag and partNumber.
  */
-const uploadPart = async (
+export const uploadPart = async (
   axiosInstance: AxiosInstance,
   url: string,
   uploadId: string,
@@ -181,7 +190,7 @@ const uploadPart = async (
  * @param signal - Optional An AbortSignal to cancel the operation.
  * @returns Response to the complete upload request.
  */
-const completeUpload = async (
+export const completeUpload = async (
   axiosInstance: AxiosInstance,
   url: string,
   uploadId: string,
@@ -207,7 +216,7 @@ const completeUpload = async (
  * @param signal - Optional An AbortSignal to cancel the operation.
  * @returns A promise that resolves to an array of results from processing each chunk.
  */
-const readFileInChunks = async (
+export const readFileInChunks = async (
   filePath: string,
   fileSize: number,
   maxChunkSizeBytes: number,
@@ -258,7 +267,7 @@ const readFileInChunks = async (
  * @param partSizeBytes - The maximum size in bytes for each file part.
  * @param signal - Optional An AbortSignal to cancel the operation.
  */
-const uploadFileInParts = async (
+export const uploadFileInParts = async (
   axiosInstance: AxiosInstance,
   fileName: string,
   filePath: string,
