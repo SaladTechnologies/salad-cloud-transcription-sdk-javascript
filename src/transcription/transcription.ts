@@ -282,7 +282,7 @@ export class SaladCloudTranscriptionSdk {
       }
 
       // Otherwise, wait and poll again.
-      await new Promise((resolve) => setTimeout(resolve, oneSecondInMs * 3))
+      await new Promise((resolve) => setTimeout(resolve, oneSecondInMs * 5))
       return poll()
     }
 

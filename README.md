@@ -280,7 +280,7 @@ const transcriptionsList = await sdk.list(
 
 ### WaitFor
 
-Polls the transcription status until the job reaches a final state ("succeeded" or "failed"), times out at 3 minutes, or the operation is aborted.
+Polls the transcription status every 5 seconds until one of the following occurs: the job reaches a final state (either "succeeded" or "failed"), it times out after 3 minutes, or the operation is aborted.
 
 ```ts
 import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
