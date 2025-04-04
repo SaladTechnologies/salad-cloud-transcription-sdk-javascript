@@ -19,7 +19,7 @@ The Transcription REST API. Please refer to the [Transcription API Documentation
   - [Setting a Custom Timeout](#setting-a-custom-timeout)
 - [Environment Support](#environment-support)
 - [Sample Usage](#sample-usage)
-  - [Node.js Usage Example](#node.js-usage-example)
+  - [Node.js Usage Example](#nodejs-usage-example)
   - [Browser Usage Example](#browser-usage-example)
 - [Features and Methods](#features-and-methods)
   - [Transcribe](#transcribe)
