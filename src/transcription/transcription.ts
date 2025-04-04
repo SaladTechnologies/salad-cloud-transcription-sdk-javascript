@@ -258,7 +258,7 @@ export class SaladCloudTranscriptionSdk {
       if (signal?.aborted) {
         throw new Error('Operation aborted')
       }
-      if (Date.now() - startTime > oneMinuteInMs * 2) {
+      if (Date.now() - startTime > oneMinuteInMs * 3) {
         throw new Error('Timeout waiting for transcription')
       }
 
@@ -282,7 +282,7 @@ export class SaladCloudTranscriptionSdk {
       }
 
       // Otherwise, wait and poll again.
-      await new Promise((resolve) => setTimeout(resolve, oneSecondInMs * 3))
+      await new Promise((resolve) => setTimeout(resolve, oneSecondInMs * 5))
       return poll()
     }
 
