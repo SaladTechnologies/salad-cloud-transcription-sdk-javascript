@@ -10,6 +10,35 @@ Welcome to the SaladCloud Transcription SDK documentation. This guide will help 
 
 The Transcription REST API. Please refer to the [Transcription API Documentation](https://docs.salad.com/reference/transcribe/inference_endpoints/create-an-inference-endpoint-job) for more details.
 
+## Table of Contents
+
+- [Getting Started](#getting-started)
+- [Installation](#installation)
+- [Authentication](#authentication)
+  - [Setting the API key](#setting-the-api-key)
+  - [Setting a Custom Timeout](#setting-a-custom-timeout)
+- [Environment Support](#environment-support)
+- [Sample Usage](#sample-usage)
+  - [Node.js Usage Example](#node.js-usage-example)
+  - [Browser Usage Example](#browser-usage-example)
+- [Features and Methods](#features-and-methods)
+  - [Transcribe](#transcribe)
+  - [Transcribe and Get Updates via a Webhook](#transcribe-and-get-updates-via-a-webhook)
+  - [Get](#get)
+  - [Stop](#stop)
+  - [List](#list)
+  - [WaitFor](#waitfor)
+- [Error Handling](#error-handling)
+- [License](#license)
+
+## Getting Started
+
+To quickly integrate the SDK, follow these steps:
+
+1.  Install the SDK (see above).
+2.  Initialize the SDK with your API key.
+3.  Transcribe a File using a basic example provided below.
+
 ## Installation
 
 To get started with the SDK, we recommend installing using `npm` or `yarn`:
@@ -21,22 +50,6 @@ npm install @saladtechnologies-oss/salad-cloud-transcription-sdk
 ```bash
 yarn add @saladtechnologies-oss/salad-cloud-transcription-sdk
 ```
-
-## Table of Contents
-
-- [Authentication](#authentication)
-  - [Setting the API key](#transcribe)
-  - [Setting a Custom Timeout](#get)
-- [Sample Usage](#sample-usage)
-- [Features and Methods](#features-and-methods)
-  - [Transcribe](#transcribe)
-  - [Transcribe and Get Updates via a Webhook](#transcribe-and-get-updates-via-a-webhook)
-  - [Get](#get)
-  - [Stop](#stop)
-  - [List](#list)
-  - [WaitFor](#waitfor)
-- [Error Handling](#error-handling)
-- [License](#license)
 
 ## Authentication
 
@@ -60,15 +73,51 @@ You can set a custom timeout for the SDK's HTTP requests as follows:
 const sdk = new SaladCloudTranscriptionSdk({ timeout: 10000 })
 ```
 
+## Environment Support
+
+The SaladCloud Transcription SDK is built to work seamlessly in both Node.js and browser environments.
+
+- Node.js:
+  Full support for local file operations and heavy file I/O makes the SDK ideal for server-side applications and CLI tools.
+
+- Browser Limitations:
+  Browsers do not have access to the local file system like Node.js does. Therefore, any attempt to perform local file I/O in the browser will be explicitly rejected.
+
 ## Sample Usage
 
 Below is a comprehensive example demonstrating how to authenticate and transcribe:
+
+### Node.js Usage Example
+
+```ts
+const { SaladCloudTranscriptionSdk } = require('@saladtechnologies-oss/salad-cloud-transcription-sdk')
+
+const organizationName = 'organization_name'
+const file = 'file:///path/to/file.mp4'
+
+const sdk = new SaladCloudTranscriptionSdk({ apiKey: 'YOUR_API_KEY' })
+
+const transcribe = async (): Promise<string> => {
+  const { id } = await sdk.transcribe(organizationName, file)
+  return id
+}
+
+;(async () => {
+  try {
+    await transcribe()
+  } catch (error) {
+    console.error(error)
+  }
+})()
+```
+
+### Browser Usage Example
 
 ```ts
 import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
 
 const organizationName = 'organization_name'
-const file = 'file_to_path_or_url'
+const file = 'https://example.com/video.mp4'
 
 const sdk = new SaladCloudTranscriptionSdk({ apiKey: 'YOUR_API_KEY' })
 
@@ -92,7 +141,8 @@ The SDK exposes several key methods:
 
 ### Transcribe
 
-Transcribes a file or remote source. If a local file is provided, it is uploaded before transcription.
+Transcribes either a local file or a remote source.
+If you provide a local file, it’s uploaded before transcription. Files larger than 100 MB are uploaded in chunks
 
 ```ts
 import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
@@ -185,7 +235,14 @@ const sdk = new SaladCloudTranscriptionSdk({
   apiKey: 'YOUR_API_KEY',
 })
 
-const transcription = await sdk.get('organization_name', 'transcription_job_id')
+const controller = new AbortController()
+const signal = controller.signal
+
+const transcription = await sdk.get(
+  'organization_name', // organization name
+  'transcription_job_id', // transcription job ID
+  signal, // optional AbortSignal to cancel the operation
+)
 ```
 
 ### Stop
@@ -199,7 +256,10 @@ const sdk = new SaladCloudTranscriptionSdk({
   apiKey: 'YOUR_API_KEY',
 })
 
-await sdk.stop('organization_name', 'transcription_job_id')
+await sdk.stop(
+  'organization_name', // organization name
+  'transcription_job_id', // transcription job ID
+)
 ```
 
 ### List
@@ -213,12 +273,14 @@ const sdk = new SaladCloudTranscriptionSdk({
   apiKey: 'YOUR_API_KEY',
 })
 
-const transcriptionsList = await sdk.list('organization_name')
+const transcriptionsList = await sdk.list(
+  'organization_name', // organization name
+)
 ```
 
 ### WaitFor
 
-Polls the transcription status until the job reaches a final state ("succeeded" or "failed"), a timeout is reached, or the operation is aborted.
+Polls the transcription status until the job reaches a final state ("succeeded" or "failed"), times out at 3 minutes, or the operation is aborted.
 
 ```ts
 import { SaladCloudTranscriptionSdk } from '@saladtechnologies-oss/salad-cloud-transcription-sdk'
@@ -228,7 +290,14 @@ const sdk = new SaladCloudTranscriptionSdk({
 })
 
 try {
-  const finalResult = await sdk.waitFor('organization_name', 'transcription_job_id')
+  const controller = new AbortController()
+  const signal = controller.signal
+
+  const finalResult = await sdk.get(
+    'organization_name', // organization name
+    'transcription_job_id', // transcription job ID
+    signal, // optional AbortSignal to cancel the operation
+  )
 } catch (error) {
   console.error('Error or timeout while waiting:', error)
 }

@@ -1,10 +1,11 @@
 import { AxiosInstance } from 'axios'
+import { randomUUID } from 'crypto'
 import FormData from 'form-data'
 import fs from 'fs/promises'
 import { createReadStream, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { filePartSizeBytesForStorage, maxFileSizeBytesForStorage } from '../constants'
+import { filePartSizeBytesForStorage, maxFileSizeBytesForStorage, oneDayInSeconds } from '../constants'
 import { SignFileError, UploadError } from '../errors'
 import { Semaphore } from './semaphore'
 
@@ -64,7 +65,6 @@ export const normalizeFilePath = (filePath: string): string => {
  * @returns A FormData instance containing the file.
  */
 export const createFormData = async (fileSource: string): Promise<FormData> => {
-  console.log(!existsSync(fileSource))
   if (!existsSync(fileSource)) {
     throw new UploadError(fileSource, 'File not found')
   }
@@ -125,7 +125,7 @@ export const signFile = async (
 ): Promise<UploadFileResponse> => {
   const requestBody = {
     method: 'GET',
-    exp: '3600',
+    exp: oneDayInSeconds,
   }
 
   try {
@@ -260,7 +260,7 @@ export const readFileInChunks = async (
  * 3. Completes the upload once all parts are processed.
  *
  * @param axiosInstance - The Axios instance for making HTTP requests.
- * @param fileName - The name of the file being uploaded.
+ * @param uniqueFileName - The name and uid of the file being uploaded.
  * @param filePath - The path of the file on the local filesystem.
  * @param fileSize - The total size of the file in bytes.
  * @param organizationName - The name of the organization (used in URL paths).
@@ -269,15 +269,15 @@ export const readFileInChunks = async (
  */
 export const uploadFileInParts = async (
   axiosInstance: AxiosInstance,
-  fileName: string,
+  uniqueFileName: string,
   filePath: string,
   fileSize: number,
   organizationName: string,
   partSizeBytes: number,
   signal?: AbortSignal,
 ): Promise<void> => {
-  const filesUploadUrl = `/organizations/${organizationName}/files/${fileName}`
-  const filePartsUploadUrl = `/organizations/${organizationName}/file_parts/${fileName}`
+  const filesUploadUrl = `/organizations/${organizationName}/files/${uniqueFileName}`
+  const filePartsUploadUrl = `/organizations/${organizationName}/file_parts/${uniqueFileName}`
 
   const createUploadUrl = `${filesUploadUrl}?action=mpu-create`
 
@@ -322,11 +322,14 @@ export const getTranscriptionLocalFileSource = async (
   organizationName: string,
   signal?: AbortSignal,
 ): Promise<string> => {
+  const uniqueId = randomUUID()
   const normalizedFilePath = normalizeFilePath(source)
   const fileName = path.basename(normalizedFilePath)
 
-  const uploadFileRequestUrl = `/organizations/${organizationName}/files/${fileName}`
-  const signFileRequestUrl = `/organizations/${organizationName}/file_tokens/${fileName}`
+  const uniqueFileName = `${uniqueId}-${fileName}`
+
+  const uploadFileRequestUrl = `/organizations/${organizationName}/files/${uniqueFileName}`
+  const signFileRequestUrl = `/organizations/${organizationName}/file_tokens/${uniqueFileName}`
 
   try {
     const stats = await fs.stat(normalizedFilePath)
@@ -335,7 +338,7 @@ export const getTranscriptionLocalFileSource = async (
     if (fileSize > maxFileSizeBytesForStorage) {
       await uploadFileInParts(
         axiosInstance,
-        fileName,
+        uniqueFileName,
         normalizedFilePath,
         fileSize,
         organizationName,

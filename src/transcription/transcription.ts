@@ -258,7 +258,7 @@ export class SaladCloudTranscriptionSdk {
       if (signal?.aborted) {
         throw new Error('Operation aborted')
       }
-      if (Date.now() - startTime > oneMinuteInMs * 2) {
+      if (Date.now() - startTime > oneMinuteInMs * 3) {
         throw new Error('Timeout waiting for transcription')
       }
 

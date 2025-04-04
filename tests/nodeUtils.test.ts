@@ -3,6 +3,7 @@ import fsPromises from 'fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { oneDayInSeconds } from '../src/transcription/constants'
 import * as utils from '../src/transcription/node'
 import {
   completeUpload,
@@ -110,7 +111,7 @@ describe('signFile', () => {
     const axiosInstance: any = createAxiosInstance('post', signResponse)
     const result = await signFile(axiosInstance as any, testUrl, testFileName)
     expect(result).toEqual(signResponse)
-    expect(axiosInstance.post).toHaveBeenCalledWith(testUrl, { method: 'GET', exp: '3600' })
+    expect(axiosInstance.post).toHaveBeenCalledWith(testUrl, { method: 'GET', exp: oneDayInSeconds })
   })
 
   it('should throw an error on failure', async () => {
